@@ -19,6 +19,20 @@
 - WebSocket gzip / 文本推送、断线重连、5 秒轮询兜底、10 秒断流检查、前后台恢复。
 - 移动布局、深浅色与跟随系统；概览提供中英文，历史详情沿用官方中文界面。
 
+## 效果图片
+
+<img width="1080" height="846" alt="1_结果" src="https://github.com/user-attachments/assets/6e20c091-5481-42e6-be67-7b102be2e878" />
+
+<img width="1080" height="975" alt="2_结果" src="https://github.com/user-attachments/assets/6aec2a7c-4336-4476-983e-8090ca51e627" />
+
+<img width="1080" height="733" alt="3_结果" src="https://github.com/user-attachments/assets/1e834a38-384a-4cfa-8ca6-169475e2187b" />
+
+<img width="1080" height="823" alt="4_结果" src="https://github.com/user-attachments/assets/6020e9ee-cc2f-4855-aa72-38214640e1cc" />
+
+<img width="1080" height="977" alt="5_结果" src="https://github.com/user-attachments/assets/8de2bc21-1c09-41fa-aee6-6bee90bf1783" />
+
+<img width="1080" height="758" alt="6_结果" src="https://github.com/user-attachments/assets/e149c579-3a89-4172-ab48-5c2cdeae5e09" />
+
 ## 与参考站的适配差异
 
 公开接口没有 IP 地址和精确坐标，因此卡片不展示 IP 类型，地图按国家着色；缩放后可滚动，国家按钮用于筛选。汇总第四项显示本月流量，不估算跨币种「剩余价值」。不实现 CF 的后台、第三方汇率或 agent 控制功能。管理后台可直接访问 monitor 自带的 `/admin`。环形图展示 CPU / RAM / DISK，条形图额外展示套餐用量。价格开关仅控制概览卡片，详情显示接口提供的续费资料。
