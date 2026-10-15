@@ -36,3 +36,11 @@ button,a,input{touch-action:manipulation}button,a{transition:background .15s,bor
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}.meter-track i,.metric-ring-progress{transition:none}}
 .probe-selectors button[aria-pressed=true]{background:var(--green);color:var(--primary-foreground);border-color:var(--green)}.probe-selectors button[aria-pressed=false]{background:rgba(var(--panel-rgb),.35);color:var(--muted-foreground);border-color:var(--border);opacity:.7}
 .filter-row button{display:inline-flex;align-items:center;gap:5px}.filter-row .country-flag{width:18px;height:12px}@media(max-width:700px){.filter-row .country-flag{width:14px;height:10px}.filter-row button{gap:3px}}
+
+/* Probe values must remain readable on both terminal palettes. */
+.probe-selectors button[aria-pressed=true]{background:var(--card);color:var(--foreground);border-color:var(--green)}
+.probe-selectors button>span{color:inherit;margin:6px 0 0;font-size:12px;font-weight:600}
+.probe-selectors button>i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px}
+.probe-average-note{font-size:11px;color:var(--muted-foreground);margin:0 0 10px}
+.buckets i.info{background:var(--blue)}.info{color:var(--blue)}
+.buckets i.absent{background:var(--border);opacity:.45}

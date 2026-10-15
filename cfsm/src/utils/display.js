@@ -1,4 +1,5 @@
 import { bytes, percent, timestamp } from './metrics.js'
+import { probeNumber, probeSamples } from './probes.js'
 export const osIcon = value => {
   const os = String(value || '').toLowerCase()
   if (os.includes('alpine')) return 'os-alpine.webp'
@@ -53,5 +54,11 @@ export function billing(server, language) {
   const currency = currencies[server.currency] || server.currency || ''
   return `${currency}${price}${cycle ? ` / ${cycle}` : ''}`
 }
-export const probeTone = (value, loss = false) => value === null ? 'bad' : value === false || value === undefined ? 'absent' : Number(value) >= (loss ? 5 : 220) ? 'bad' : Number(value) >= (loss ? 1 : 170) ? 'warn' : 'good'
-export const probeWindow = (server, field, key) => (Array.isArray(server[field]) ? server[field] : []).map(point => point[key])
+export const probeTone = (value, loss = false) => {
+  if (value === null && !loss) return 'bad'
+  const number = probeNumber(value)
+  if (number === null) return 'absent'
+  return loss ? number <= 0 ? 'good' : number < 5 ? 'info' : number < 20 ? 'warn' : 'bad'
+    : number < 80 ? 'good' : number < 160 ? 'info' : number < 240 ? 'warn' : 'bad'
+}
+export const probeWindow = probeSamples

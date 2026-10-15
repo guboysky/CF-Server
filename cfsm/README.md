@@ -36,4 +36,10 @@ GitHub Actions 对 PR 执行测试和构建；合并到 main/master 或手动运
 
 ## 本次验收记录
 
-本地单元测试 11 项，浏览器测试 13 项，覆盖四种公开/Turnstile 模拟组合、401/403、跨站 JWT、隐藏恢复、无轮询、布局/地图/筛选、独立详情及截图。已用本地构建连接用户现有公开 CF 站点：12 个节点，首页与单机 WS 合计收到 21 个 batchUpdate；config、servers、server、history/all 各一次，无页面错误及横向溢出。真实截图仅保留本机临时目录，未上传仓库；此记录不代表已替用户应用线上主题。真实 Turnstile 和私有登录组合仍待验收。
+本地单元测试 14 项，浏览器测试 15 项，覆盖四种公开/Turnstile 模拟组合、401/403、跨站 JWT、隐藏恢复、无轮询、布局/地图/筛选、独立详情、窗口平均丢包率、详情平均值与文字对比度、资源百分比、Disk IO/GPU 单位及截图。已用本地构建连接用户现有公开 CF 站点：12 个节点，首页与单机 WS 合计收到 19 个 batchUpdate；config、servers、server、history/all 各一次，无页面错误及横向溢出。真实截图仅保留本机临时目录，未上传仓库；此记录不代表已替用户应用线上主题。真实 Turnstile 和私有登录组合仍待验收。
+
+### 与 CF 默认主题的数据口径对齐
+
+参考 [CF 默认卡片](https://github.com/huilang-me/CF-Server-Monitor/blob/fa60c60d7a5e872c874fe92822206b32d072c3af/src/frontend/composables/useServerCardData.js) 及 [默认详情](https://github.com/huilang-me/CF-Server-Monitor/blob/fa60c60d7a5e872c874fe92822206b32d072c3af/src/frontend/views/ServerDetail.vue)：卡片按窗口时间排序，显示最新有效延迟和窗口平均丢包；无有效窗口时回退到快照。详情显示选中范围的平均延迟/丢包，排除缺失、禁用和超时，保留有效零值。延迟红点表示高延迟或超时，不等于测得 100% 丢包；丢包缺失用灰点和 — 表示，不从超时推算百分比。微量丢包保留两位小数，低于 0.01% 显示 <0.01%。丢包色阶为 0 绿、(0,5) 蓝、[5,20) 黄、≥20 红；延迟分界为 80/160/240ms。
+
+RAM/Swap、磁盘历史图使用百分比；容量摘要仍按 MiB 换算为字节。网络使用 bytes/s；Disk IO 支持对象和 JSON 字符串，分别显示吞吐、IOPS、await、util，避免把不同单位当成字节。GPU 可用字段分别显示利用率、显存、SM 时钟、功耗。探针配色固定，切换延迟/丢包不查询新历史；悬浮时间含日期和秒。WS 仅上报其他指标时，不把保留的旧探针值当成新测量计入平均。

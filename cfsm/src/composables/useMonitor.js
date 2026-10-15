@@ -3,7 +3,7 @@ import { apiBases } from '../utils/config.js'
 import * as api from '../utils/api.js'
 import { redirectLogin } from '../utils/http.js'
 import { createSocket } from '../utils/socket.js'
-import { mergeMetrics, timestamp } from '../utils/metrics.js'
+import { mergeMetrics, timestamp, probes } from '../utils/metrics.js'
 export const state = reactive({ ready: false, error: '', page: null, loading: false, detail: null, rows: [], hours: 0.167, historyLoading: false, sites: apiBases.map(base => ({ base, config: null, servers: [], stats: {}, sysConfig: {}, status: 'paused', expired: false, socket: null })) })
 let generation = 0, historyGeneration = 0
 export async function initialize() {
@@ -37,8 +37,10 @@ function startSocket(site, page, epoch) {
         if (!update) return
         state.detail = mergeMetrics(state.detail, update)
         const row = { ...state.detail, timestamp: update.sample_timestamp ?? update.last_updated }
+        // A retained snapshot field is not a new probe measurement.
+        for (const key of probes) for (const field of ['ping', 'loss']) row[`${field}_${key}`] = update[`${field}_${key}`]
         const since = Date.now() - state.hours * 3600000
-        state.rows = [...state.rows, row].filter(item => timestamp(item.timestamp ?? item.last_updated) >= since).slice(-2000)
+        state.rows = [...state.rows.filter(item => timestamp(item.timestamp ?? item.last_updated) !== timestamp(row.timestamp)), row].filter(item => timestamp(item.timestamp ?? item.last_updated) >= since).sort((a, b) => timestamp(a.timestamp ?? a.last_updated) - timestamp(b.timestamp ?? b.last_updated)).slice(-2000)
       } else {
         // Unchanged cards retain object identity. No reactive mutation per WS sample.
         site.servers = site.servers.map(server => updates.has(String(server.id)) ? mergeMetrics(server, updates.get(String(server.id))) : server)
@@ -83,7 +85,7 @@ export async function changeHours(hours) {
   state.historyLoading = true
   try {
     const rows = await api.history(state.sites[page.site || 0], page.id, hours)
-    if (epoch === generation && ticket === historyGeneration) state.rows = Array.isArray(rows) ? rows : []
+    if (epoch === generation && ticket === historyGeneration) state.rows = Array.isArray(rows) ? [...rows].sort((a, b) => timestamp(a.timestamp ?? a.last_updated) - timestamp(b.timestamp ?? b.last_updated)) : []
   } catch (error) { if (epoch === generation) state.error = error.message }
   finally { if (ticket === historyGeneration) state.historyLoading = false }
 }

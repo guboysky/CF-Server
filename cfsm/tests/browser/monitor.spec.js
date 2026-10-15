@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 const server = { id: 'one', note: 'CN2 GIA, 备用节点', ip_v4: '1', ip_v6: '1', name: 'Tokyo Edge', region: 'JP', server_group: 'Production', cpu: 12, cpu_cores: 4, cpu_info: 'AMD EPYC 7B13', kernel_version: '6.12.41-amd64', boot_time: Date.now() - 93 * 86400000, load_avg: '0.07, 0.03, 0.00', ram_total: 4096, ram_used: 1024, disk_total: 80000, disk_used: 12000, swap_total: 2048, swap_used: 0, net_in_speed: 1024, net_out_speed: 512, net_rx: 274 * 1024 ** 3, net_tx: 393 * 1024 ** 3, net_rx_monthly: 27 * 1024 ** 3, net_tx_monthly: 3 * 1024 ** 3, traffic_limit: 1024, processes: 94, tcp_conn: 28, udp_conn: 2, price: '33.15', currency: '$', billing_cycle: 'month', expire_date: new Date(Date.now() + 19 * 86400000).toISOString(), arch: 'amd64', os: 'Debian', last_updated: Date.now(), ping_ct: 0, loss_ct: 0, ping_cu: null, loss_cu: null, ping_cm: false, loss_cm: false, ping: [{ ts: Date.now(), ct: 0, cu: null, cm: false }], loss: [{ ts: Date.now(), ct: 0, cu: null, cm: false }] }
-async function mock(page, { isPublic = true, turnstile = false, loggedIn = false, timeout = 0, rejectOnce = false, nodes = 1, multiSite = false, note = server.note, clusteredHistory = false, themeOptions = {}, sysConfig = {}, serverData = {} } = {}) {
+async function mock(page, { isPublic = true, turnstile = false, loggedIn = false, timeout = 0, rejectOnce = false, nodes = 1, multiSite = false, note = server.note, clusteredHistory = false, themeOptions = {}, sysConfig = {}, serverData = {}, historyData = null } = {}) {
   const calls = [], sockets = [], apiErrors = [], pageErrors = []
   page.on('pageerror', error => pageErrors.push(error.message))
   await page.addInitScript(({ loggedIn }) => {
@@ -26,7 +26,7 @@ async function mock(page, { isPublic = true, turnstile = false, loggedIn = false
     const verified = turnstile ? { turnstile_verified: 'cached-verified' } : {}
     if (url.pathname === '/api/servers') return route.fulfill({ json: { servers: Array.from({ length: nodes }, (_, index) => ({ ...server, ...serverData, note, id: multiSite ? url.hostname : index ? `node-${index}` : 'one', name: nodes === 1 ? server.name : ['Tokyo Edge', 'Singapore Core', 'Frankfurt Relay', 'Hong Kong Edge', 'Los Angeles', 'London Gateway'][index], cpu: index === 4 ? 82 : 12 + index * 11, ram_used: 1024 + index * 350, server_group: index > 2 ? 'Development' : 'Production', region: ['JP', 'SG', 'DE', 'HK', 'US', 'GB'][index], last_updated: index === 5 ? Date.now() - 400000 : Date.now() })), stats: { total: nodes, online: nodes === 6 ? 5 : nodes, offline: nodes === 6 ? 1 : 0 }, sysConfig: { show_three_net_details: true, show_price: true, show_expire: true, show_tf: true, ...sysConfig }, ...verified } })
     if (url.pathname === '/api/server') return route.fulfill({ json: { ...server, ...serverData, ...verified } })
-    if (url.pathname === '/api/history/all') return route.fulfill({ json: Array.from({ length: 24 }, (_, index) => ({ ...server, cpu: 12 + Math.sin(index / 3) * 8, net_in_speed: 65536 + Math.sin(index) * 15000, net_out_speed: 4096 + index * 30, tcp_conn: 28 + Math.floor(Math.sin(index) * 5), processes: 94 + Math.floor(Math.cos(index) * 4), timestamp: Date.now() - (clusteredHistory ? index < 4 ? (10 - index * 2) * 60000 : (23 - index) * 2500 : (23 - index) * 20000) })) })
+    if (url.pathname === '/api/history/all') return route.fulfill({ json: Array.from({ length: 24 }, (_, index) => ({ ...server, ...serverData, cpu: 12 + Math.sin(index / 3) * 8, net_in_speed: 65536 + Math.sin(index) * 15000, net_out_speed: 4096 + index * 30, tcp_conn: 28 + Math.floor(Math.sin(index) * 5), processes: 94 + Math.floor(Math.cos(index) * 4), ...(historyData ? historyData[index % historyData.length] : {}), timestamp: Date.now() - (clusteredHistory ? index < 4 ? (10 - index * 2) * 60000 : (23 - index) * 2500 : (23 - index) * 20000) })) })
     if (url.pathname === '/api/theme_options') return route.fulfill({ json: { success: true, ...verified } })
     apiErrors.push(url.pathname); return route.fulfill({ status: 404 })
   })
@@ -40,6 +40,39 @@ async function mock(page, { isPublic = true, turnstile = false, loggedIn = false
   return { calls, sockets, apiErrors, pageErrors }
 }
 const count = (context, path) => context.calls.filter(call => call.path === path).length
+test('CF serialized disk IO and optional GPU details keep correct units without extra history queries', async ({ page }) => {
+  const ctx = await mock(page, { serverData: { disk: JSON.stringify({ read_bps: 1024, write_bps: 2048, read_iops: 2, write_iops: 4, await_ms: 3, util: 25 }), gpu_info: JSON.stringify([{ id: 0, name: 'Test GPU', info: 0, mem_used: 1024, mem_total: 4096, sm_clock: 1200, power: 50 }]) } })
+  await page.goto('/#/server/one')
+  await expect(page.getByRole('heading', { name: 'Disk IOPS', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Test GPU · GPU Memory', exact: true })).toBeVisible()
+  const gpu = page.locator('.chart-card').filter({ has: page.getByRole('heading', { name: 'Test GPU · GPU Memory', exact: true }) })
+  await gpu.locator('svg[role="img"]').hover({ position: { x: 150, y: 80 } })
+  await expect(gpu.locator('.chart-tooltip')).toContainText('1.0 GiB')
+  await expect(gpu.locator('.chart-tooltip')).toContainText('4.0 GiB')
+  expect(count(ctx, '/api/history/all')).toBe(1); expect(count(ctx, '/api/servers')).toBe(0)
+  expect(ctx.pageErrors).toEqual([])
+})
+test('window loss, range averages, resource percentages and probe contrast match CF semantics', async ({ page }) => {
+  const ctx = await mock(page, { serverData: { loss_ct: null, ping_ct: 200, loss: [{ ts: 1700000001, ct: 0 }, { ts: 1700000002, ct: 20 }, { ts: 1700000003, ct: null }] }, historyData: [{ ping_ct: 0, loss_ct: 0 }, { ping_ct: 100, loss_ct: 2 }, { ping_ct: null, loss_ct: null }, { ping_ct: false, loss_ct: false }] })
+  await page.goto('/')
+  const carrier = page.locator('.carrier-row[data-probe="ct"]')
+  await expect(carrier.locator('.loss-caption')).toHaveText('10%')
+  await expect(carrier.locator('.buckets').last().locator('i.bad')).toHaveCount(1)
+  await expect(carrier.locator('.buckets').last().locator('i.absent')).toHaveCount(1)
+  await page.locator('.cf-card').click()
+  const ct = page.locator('.probe-selectors button').first()
+  await expect(ct).toContainText('50 ms')
+  const colors = await ct.evaluate(button => [getComputedStyle(button).color, getComputedStyle(button.querySelector('span')).color, getComputedStyle(button).backgroundColor])
+  expect(colors[0]).toBe(colors[1]); expect(colors[1]).not.toBe(colors[2])
+  await page.locator('.probes-section .range-tabs button').last().click()
+  await expect(ct).toContainText('1%'); await expect(ct).not.toContainText('ms')
+  const resource = page.locator('.chart-grid .chart-card').nth(1)
+  await expect(resource.locator('.chart-subtitle')).toHaveText('%')
+  await resource.locator('svg[role="img"]').hover({ position: { x: 150, y: 80 } })
+  await expect(resource.locator('.chart-tooltip')).toContainText('25%')
+  expect(count(ctx, '/api/history/all')).toBe(1)
+  expect(ctx.pageErrors).toEqual([])
+})
 for (const isPublic of [true, false]) for (const turnstile of [false, true]) {
   test(`CF contract: ${isPublic ? 'public' : 'private'} + Turnstile ${turnstile}`, async ({ page }) => {
     const ctx = await mock(page, { isPublic, turnstile, loggedIn: !isPublic })

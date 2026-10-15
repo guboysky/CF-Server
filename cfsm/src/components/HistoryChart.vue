@@ -45,8 +45,8 @@ const paths = computed(() => visible.value.map(series => {
     return { path, area: `${path} L${points.at(-1).x},${bounds.value.bottom} L${points[0].x},${bounds.value.bottom} Z` }
   }) }
 }))
-const format = value => props.unit === 'bytes' ? bytes(value) : `${Number(value.toFixed(value < 1 && value > 0 ? 2 : 1))}${props.unit || ''}`
-const time = value => timestamp(value) ? new Date(timestamp(value)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'
+const format = value => props.unit === '%' && value > 0 && value < 0.01 ? '<0.01%' : props.unit === 'bytes' ? bytes(value) : `${Number(value.toFixed(props.unit === '%' || value < 1 && value > 0 ? 2 : 1))}${props.unit || ''}`
+const time = value => timestamp(value) ? new Date(timestamp(value)).toLocaleString([], { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—'
 const ticks = computed(() => timeTicks(timesMs.value[0], timesMs.value.at(-1), bounds.value.right - bounds.value.left))
 const tickLabel = tick => new Date(tick.value).toLocaleString([], { ...(tick.date ? { month: 'numeric', day: 'numeric' } : {}), hour: '2-digit', minute: '2-digit', ...(tick.seconds ? { second: '2-digit' } : {}) })
 const tooltipStyle = computed(() => ({ left: `${Math.max(5, Math.min(size.value.width - 185, x(hovered.value || 0) + 12))}px` }))
