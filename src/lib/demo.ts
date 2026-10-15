@@ -1,7 +1,0 @@
-import type { Node } from './api'
-export const demoMe = {site_name: '探针名称', authed: false, public_page: true, history_days: 7}
-export const demoNodes: Node[] = ['US','JP','SG','HK','DE','GB','CA','AU','CN'].map((country,i) => ({
-  id:i+1,name:`${country}-${String(i+1).padStart(3,'0')}`,sort:i,public:true,online:i!==7,country,group:i<6?'GLOBAL / 全球节点':'ASIA PACIFIC / 亚太',last_seen:0,last_seen_ago:i===7?5400:1,
-  os:i===0?'Windows Server 2022 Datacenter':i%2?'Debian 12':'Ubuntu 24.04',kernel:'6.8.0',arch:'x86_64',virt:i===0?'unknown':'KVM',cpu_name:'AMD EPYC 7543',cpu_cores:4,mem_total:4294967296,swap_total:i===0?1073741824:0,disk_total:85899345920,agent_version:'1.4.1',price: i%3?0:5,currency:'USD',billing_cycle:'monthly',expires_at:'2027-10-13',expires_in:365,traffic_limit:1099511627776,traffic_mode:'sum',traffic_reset_day:1,total_rx:128849018880*(i+1),total_tx:64424509440*(i+1),month_rx:32212254720,month_tx:17179869184,month_start:'2026-10-01',day_rx:1073741824,day_tx:536870912,
-  metrics:i===7?null:{uptime:86400*(i+3),cpu:12.4+i*8.1,load:[0.12+i/3,0.16,0.22],mem_total:4294967296,mem_used:1073741824+i*246000000,swap_total:i===0?1073741824:0,swap_used:i===0?171798692:0,disk_total:85899345920,disk_used:17179869184+i*1000000000,net_rx:1245000*(i+1),net_tx:860000*(i+1),total_rx:128849018880,total_tx:64424509440,month_rx:32212254720,month_tx:17179869184,tcp:28+i*4,udp:5,procs:115}
-}))
