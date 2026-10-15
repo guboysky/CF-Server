@@ -1,0 +1,172 @@
+import { test, expect } from '@playwright/test'
+const server = { id: 'one', note: 'CN2 GIA, 备用节点', ip_v4: '1', ip_v6: '1', name: 'Tokyo Edge', region: 'JP', server_group: 'Production', cpu: 12, cpu_cores: 4, cpu_info: 'AMD EPYC 7B13', kernel_version: '6.12.41-amd64', boot_time: Date.now() - 93 * 86400000, load_avg: '0.07, 0.03, 0.00', ram_total: 4096, ram_used: 1024, disk_total: 80000, disk_used: 12000, swap_total: 2048, swap_used: 0, net_in_speed: 1024, net_out_speed: 512, net_rx: 274 * 1024 ** 3, net_tx: 393 * 1024 ** 3, net_rx_monthly: 27 * 1024 ** 3, net_tx_monthly: 3 * 1024 ** 3, traffic_limit: 1024, processes: 94, tcp_conn: 28, udp_conn: 2, price: '33.15', currency: '$', billing_cycle: 'month', expire_date: new Date(Date.now() + 19 * 86400000).toISOString(), arch: 'amd64', os: 'Debian', last_updated: Date.now(), ping_ct: 0, loss_ct: 0, ping_cu: null, loss_cu: null, ping_cm: false, loss_cm: false, ping: [{ ts: Date.now(), ct: 0, cu: null, cm: false }], loss: [{ ts: Date.now(), ct: 0, cu: null, cm: false }] }
+async function mock(page, { isPublic = true, turnstile = false, loggedIn = false, timeout = 0, rejectOnce = false, nodes = 1, multiSite = false, note = server.note, clusteredHistory = false, themeOptions = {}, sysConfig = {}, serverData = {} } = {}) {
+  const calls = [], sockets = [], apiErrors = [], pageErrors = []
+  page.on('pageerror', error => pageErrors.push(error.message))
+  await page.addInitScript(({ loggedIn }) => {
+    if (loggedIn && location.pathname !== '/admin') localStorage.setItem('jwt_token', 'test-jwt')
+    window.turnstile = { render: (element, options) => { element.innerHTML = '<button id="solve">Verify</button>'; element.querySelector('button').onclick = () => options.callback('test-turnstile'); return 'widget' }, remove: () => {}, reset: () => {} }
+    document.addEventListener('test-hidden', () => { Object.defineProperty(document, 'hidden', { configurable: true, value: true }); document.dispatchEvent(new Event('visibilitychange')) })
+    document.addEventListener('test-visible', () => { Object.defineProperty(document, 'hidden', { configurable: true, value: false }); document.dispatchEvent(new Event('visibilitychange')) })
+  }, { loggedIn })
+  await page.route('**/flags/**', route => {
+    const code = route.request().url().split('/').at(-1).slice(0, 2)
+    const graphics = { jp: '<rect width="24" height="16" fill="white"/><circle cx="12" cy="8" r="5" fill="#c62c43"/>', de: '<path fill="#222" d="M0 0h24v6H0z"/><path fill="#cf3545" d="M0 6h24v5H0z"/><path fill="#f1c453" d="M0 11h24v5H0z"/>', hk: '<rect width="24" height="16" fill="#db3345"/><path fill="white" d="m12 3 1 3 3-1-2 3 2 3-3-1-1 3-1-3-3 1 2-3-2-3 3 1z"/>', sg: '<rect width="24" height="8" fill="#dd4351"/><rect y="8" width="24" height="8" fill="white"/>', us: '<rect width="24" height="16" fill="white"/><path stroke="#c8515d" stroke-width="2" d="M0 1h24M0 5h24M0 9h24M0 13h24"/><path fill="#4d638e" d="M0 0h11v9H0z"/>', gb: '<rect width="24" height="16" fill="#425b8b"/><path stroke="white" stroke-width="4" d="m0 0 24 16M24 0 0 16M12 0v16M0 8h24"/><path stroke="#d44354" stroke-width="2" d="M12 0v16M0 8h24"/>' }
+    return route.fulfill({ contentType: 'image/svg+xml', body: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 16">${graphics[code] || graphics.jp}</svg>` })
+  })
+  await page.route('**/os-icons/**', route => route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M15 7c0-6-12-7-12 2 0 9 14 11 14 1 0-7-11-8-11-1 0 5 8 6 8 0 0-4-6-4-5 0" fill="none" stroke="#be516b" stroke-width="1.5"/></svg>' }))
+  await page.route('https://cdn.nodeimage.com/**', route => route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800"><rect width="1200" height="800" fill="#74c9d8"/></svg>' }))
+  let rejected = false
+  await page.route('**/api/**', async route => {
+    const request = route.request(), url = new URL(request.url()), headers = request.headers()
+    calls.push({ path: url.pathname, query: url.search, headers, method: request.method(), body: request.postDataJSON() })
+    if (url.pathname === '/api/config') return route.fulfill({ json: { site_title: 'Ink Infrastructure', version: 'test', preferred_theme: 'dark', default_language: 'zh', is_public: isPublic, authorization: loggedIn, turnstile_enabled: turnstile, turnstile_site_key: 'test-key', frontend_ws_timeout_minutes: timeout, theme_options: themeOptions, custom_ct_name: '电信', custom_cu_name: '联通' } })
+    if (!isPublic && !headers.authorization) return route.fulfill({ status: 401, json: { error: 'Unauthorized' } })
+    if (turnstile && ((!headers['x-turnstile-token'] && !headers['x-turnstile-verified']) || (rejectOnce && !rejected))) { rejected = true; return route.fulfill({ status: 403, json: { error: 'Turnstile' } }) }
+    const verified = turnstile ? { turnstile_verified: 'cached-verified' } : {}
+    if (url.pathname === '/api/servers') return route.fulfill({ json: { servers: Array.from({ length: nodes }, (_, index) => ({ ...server, ...serverData, note, id: multiSite ? url.hostname : index ? `node-${index}` : 'one', name: nodes === 1 ? server.name : ['Tokyo Edge', 'Singapore Core', 'Frankfurt Relay', 'Hong Kong Edge', 'Los Angeles', 'London Gateway'][index], cpu: index === 4 ? 82 : 12 + index * 11, ram_used: 1024 + index * 350, server_group: index > 2 ? 'Development' : 'Production', region: ['JP', 'SG', 'DE', 'HK', 'US', 'GB'][index], last_updated: index === 5 ? Date.now() - 400000 : Date.now() })), stats: { total: nodes, online: nodes === 6 ? 5 : nodes, offline: nodes === 6 ? 1 : 0 }, sysConfig: { show_three_net_details: true, show_price: true, show_expire: true, show_tf: true, ...sysConfig }, ...verified } })
+    if (url.pathname === '/api/server') return route.fulfill({ json: { ...server, ...serverData, ...verified } })
+    if (url.pathname === '/api/history/all') return route.fulfill({ json: Array.from({ length: 24 }, (_, index) => ({ ...server, cpu: 12 + Math.sin(index / 3) * 8, net_in_speed: 65536 + Math.sin(index) * 15000, net_out_speed: 4096 + index * 30, tcp_conn: 28 + Math.floor(Math.sin(index) * 5), processes: 94 + Math.floor(Math.cos(index) * 4), timestamp: Date.now() - (clusteredHistory ? index < 4 ? (10 - index * 2) * 60000 : (23 - index) * 2500 : (23 - index) * 20000) })) })
+    if (url.pathname === '/api/theme_options') return route.fulfill({ json: { success: true, ...verified } })
+    apiErrors.push(url.pathname); return route.fulfill({ status: 404 })
+  })
+  await page.routeWebSocket('**/api/ws?*', ws => {
+    const entry = { ws, url: new URL(ws.url()), messages: [], closed: false }
+    sockets.push(entry)
+    ws.onMessage(message => entry.messages.push(JSON.parse(message)))
+    ws.onClose(() => { entry.closed = true })
+  })
+  await page.route('**/admin', route => route.fulfill({ contentType: 'text/html', body: 'Built-in administration login' }))
+  return { calls, sockets, apiErrors, pageErrors }
+}
+const count = (context, path) => context.calls.filter(call => call.path === path).length
+for (const isPublic of [true, false]) for (const turnstile of [false, true]) {
+  test(`CF contract: ${isPublic ? 'public' : 'private'} + Turnstile ${turnstile}`, async ({ page }) => {
+    const ctx = await mock(page, { isPublic, turnstile, loggedIn: !isPublic })
+    await page.goto('/'); if (turnstile) await page.locator('#solve').click()
+    await expect(page.locator('.cf-card')).toHaveCount(1)
+    await expect.poll(() => ctx.sockets.length).toBe(1)
+    await expect.poll(() => ctx.sockets[0].messages.length).toBe(1)
+    expect(ctx.sockets[0].messages[0]).toEqual({ type: 'subscribe', scope: 'all', ids: ['one'] })
+    await expect(page.locator('.carrier-row')).toHaveCount(2)
+    await expect(page.locator('.cf-card')).toContainText('0 ms')
+    await expect(page.locator('.cf-card')).toContainText('超时')
+    await page.locator('.cf-card').click(); await expect(page.locator('.chart-card').first()).toBeVisible()
+    expect(ctx.sockets[0].closed).toBe(true)
+    await expect.poll(() => ctx.sockets.length).toBe(2)
+    expect(ctx.sockets[1].url.searchParams.get('subscribe')).toBe('one')
+    expect(ctx.calls.find(call => call.path === '/api/history/all').query).toBe('?id=one&hours=0.167')
+    await page.getByRole('combobox', { name: '历史趋势', exact: true }).selectOption('6')
+    await expect.poll(() => count(ctx, '/api/history/all')).toBe(2)
+    await page.locator('.facts-back').click(); await expect(page.locator('.cf-card')).toBeVisible()
+    expect(count(ctx, '/api/config')).toBe(1); expect(count(ctx, '/api/servers')).toBe(1)
+    expect(ctx.apiErrors).toEqual([]); expect(ctx.pageErrors).toEqual([])
+    if (turnstile) expect(ctx.calls.find(call => call.path === '/api/server').headers['x-turnstile-verified']).toBe('cached-verified')
+  })
+}
+test('private anonymous redirects to Worker administration', async ({ page }) => {
+  const ctx = await mock(page, { isPublic: false }); await page.goto('/')
+  await expect(page).toHaveURL(/\/admin#\/admin$/); expect(count(ctx, '/api/servers')).toBe(0)
+})
+test('incremental CF WebSocket updates preserve fields and do not poll REST', async ({ page }) => {
+  const ctx = await mock(page); await page.goto('/'); await expect(page.locator('.cf-card')).toBeVisible()
+  await expect.poll(() => ctx.sockets.length).toBe(1)
+  for (let cpu = 30; cpu <= 40; cpu++) ctx.sockets[0].ws.send(JSON.stringify({ type: 'batchUpdate', updates: [{ serverId: 'one', samples: [{ data: { cpu }, ts: Date.now() }] }] }))
+  await expect(page.locator('.meter-line').first()).toContainText('12.00%')
+  await expect(page.locator('.meter-line').first()).toContainText('40.00%')
+  await expect(page.locator('.carrier-row')).toHaveCount(2)
+  await expect(page.locator('.card-meta')).toContainText('$33.15')
+  await page.waitForTimeout(1200)
+  expect(count(ctx, '/api/config')).toBe(1); expect(count(ctx, '/api/servers')).toBe(1)
+  expect(count(ctx, '/api/history/all')).toBe(0); expect(ctx.pageErrors).toEqual([])
+})
+test('direct detail subscribes only to its node; visibility refresh does not fetch history', async ({ page }) => {
+  const ctx = await mock(page); await page.goto('/#/server/one'); await expect(page.locator('.chart-card').first()).toBeVisible()
+  expect(count(ctx, '/api/servers')).toBe(0); expect(count(ctx, '/api/history/all')).toBe(1)
+  await expect.poll(() => ctx.sockets.length).toBe(1)
+  expect(ctx.sockets[0].url.searchParams.get('subscribe')).toBe('one')
+  await page.evaluate(() => document.dispatchEvent(new Event('test-hidden')))
+  await expect.poll(() => ctx.sockets[0].closed).toBe(true)
+  await page.evaluate(() => document.dispatchEvent(new Event('test-visible')))
+  await expect.poll(() => count(ctx, '/api/server')).toBe(2)
+  expect(count(ctx, '/api/history/all')).toBe(1); expect(count(ctx, '/api/config')).toBe(1)
+})
+test('four layouts, map filtering and local preferences reuse one CF list', async ({ page }) => {
+  const ctx = await mock(page, { nodes: 6 }); await page.goto('/'); await expect(page.locator('.cf-card')).toHaveCount(6)
+  await page.getByRole('button', { name: '环形图', exact: true }).click(); await expect(page.locator('.metric-ring')).toHaveCount(18)
+  await page.getByRole('button', { name: '列表', exact: true }).click(); await expect(page.locator('.node-table tbody tr')).toHaveCount(6)
+  await page.getByRole('button', { name: '地图', exact: true }).click()
+  await expect(page.locator('.map-marker[data-country="HK"]')).toBeVisible()
+  await expect(page.locator('.map-marker[data-country="SG"]')).toBeVisible()
+  await page.locator('.map-marker[data-country="HK"]').click()
+  await page.getByRole('button', { name: '条形图', exact: true }).click(); await expect(page.locator('.cf-card')).toHaveCount(1)
+  expect(count(ctx, '/api/servers')).toBe(1); expect(count(ctx, '/api/history/all')).toBe(0)
+  expect(ctx.apiErrors).toEqual([]); expect(ctx.pageErrors).toEqual([])
+})
+test('connection lifetime needs explicit continuation', async ({ page }) => {
+  const ctx = await mock(page, { timeout: 0.005 }); await page.goto('/'); await expect(page.locator('.cf-card')).toBeVisible()
+  await expect(page.getByRole('button', { name: '继续实时监控' })).toBeVisible()
+  await page.evaluate(() => document.dispatchEvent(new Event('test-hidden')))
+  await page.evaluate(() => document.dispatchEvent(new Event('test-visible')))
+  expect(ctx.sockets.length).toBe(1)
+  await page.getByRole('button', { name: '继续实时监控' }).click(); await expect.poll(() => ctx.sockets.length).toBe(2)
+})
+test('desktop and mobile terminal layouts and history charts', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  const ctx = await mock(page, { nodes: 6, serverData: { ping_ct: 23, loss_ct: 0.8, ping_cu: 9, loss_cu: 0.4, ping_cm: 42, loss_cm: 0.8, ping: Array.from({ length: 24 }, (_, i) => ({ ct: 23 + i % 4, cu: 9 + i % 3, cm: 42 + i % 5 })), loss: Array.from({ length: 24 }, (_, i) => ({ ct: i === 12 ? 2 : 0, cu: i === 18 ? 2 : 0, cm: 0 })) } })
+  await page.setViewportSize({ width: 1440, height: 1000 }); await page.goto('/'); await expect(page.locator('.cf-card')).toHaveCount(6)
+  await page.screenshot({ path: 'artifacts/cfsm-dark.png', fullPage: true })
+  await page.getByRole('button', { name: '切换深浅色', exact: true }).click()
+  await page.screenshot({ path: 'artifacts/cfsm-bars.png', fullPage: true })
+  await page.getByRole('button', { name: '环形图', exact: true }).click(); await page.screenshot({ path: 'artifacts/cfsm-rings.png', fullPage: true })
+  await page.getByRole('button', { name: '列表', exact: true }).click(); await page.screenshot({ path: 'artifacts/cfsm-list.png', fullPage: true })
+  await page.getByRole('button', { name: '地图', exact: true }).click(); await expect(page.locator('.map-marker')).toHaveCount(6)
+  await page.screenshot({ path: 'artifacts/cfsm-map.png', fullPage: true })
+  await page.getByRole('button', { name: '条形图', exact: true }).click(); await page.setViewportSize({ width: 390, height: 844 })
+  await expect(page.getByRole('button', { name: '地图', exact: true })).toHaveCount(0)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await page.screenshot({ path: 'artifacts/cfsm-mobile.png', fullPage: true })
+  await page.locator('.cf-card').first().click(); await expect(page.locator('.chart-card').first()).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await page.screenshot({ path: 'artifacts/cfsm-detail-mobile.png', fullPage: true })
+  await page.setViewportSize({ width: 1440, height: 1000 }); await page.screenshot({ path: 'artifacts/cfsm-detail.png', fullPage: true })
+  expect(ctx.pageErrors).toEqual([])
+})
+test('403 clears stale verification and retries only after challenge, without reload', async ({ page }) => {
+  const ctx = await mock(page, { turnstile: true, rejectOnce: true })
+  await page.goto('/')
+  await page.locator('#solve').click()
+  await expect.poll(() => count(ctx, '/api/servers')).toBe(1)
+  await expect(page.locator('#solve')).toBeVisible()
+  await page.locator('#solve').click()
+  await expect(page.locator('.cf-card')).toBeVisible()
+  expect(count(ctx, '/api/servers')).toBe(2)
+  expect(count(ctx, '/api/config')).toBe(1)
+})
+test('401 on a protected request clears JWT and redirects once', async ({ page }) => {
+  const ctx = await mock(page, { loggedIn: true })
+  await page.route('**/api/server?*', route => route.fulfill({ status: 401, json: { error: 'Unauthorized' } }))
+  await page.goto('/'); await page.locator('.cf-card').click()
+  await expect(page).toHaveURL(/\/admin#\/admin$/)
+  expect(await page.evaluate(() => localStorage.getItem('jwt_token'))).toBeNull()
+  expect(count(ctx, '/api/config')).toBe(1)
+})
+
+test('multiple sites keep subscription ids separate and use cross-origin JWT', async ({ page }) => {
+  await page.route('http://127.0.0.1:4173/', async route => {
+    const response = await route.fetch()
+    await route.fulfill({ response, body: (await response.text()).replace('<head>', '<head><meta name="apiBase" content="https://alpha.example,https://beta.example">') })
+  })
+  const ctx = await mock(page, { loggedIn: true, multiSite: true })
+  await page.goto('/')
+  await expect(page.locator('.cf-card')).toHaveCount(2)
+  await expect.poll(() => ctx.sockets.length).toBe(2)
+  for (const socket of ctx.sockets) {
+    await expect.poll(() => socket.messages.length).toBe(1)
+    expect(socket.url.searchParams.get('token')).toBe('test-jwt')
+    expect(socket.messages[0].ids).toEqual([socket.url.hostname])
+  }
+  expect(count(ctx, '/api/config')).toBe(2)
+  expect(count(ctx, '/api/servers')).toBe(2)
+})
+

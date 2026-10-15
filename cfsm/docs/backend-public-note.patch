@@ -1,0 +1,15 @@
+diff --git a/src/handlers/dashboard.js b/src/handlers/dashboard.js
+--- a/src/handlers/dashboard.js
++++ b/src/handlers/dashboard.js
+@@ -58,7 +58,11 @@
+ function withoutPrivateServerFields(server) {
+   const item = { ...server };
++  const publicNote = typeof item.note === 'string' && /^\[public\]\s*/i.test(item.note)
++    ? item.note.replace(/^\[public\]\s*/i, '').trim()
++    : '';
+   delete item.bandwidth;
+   delete item.note;
++  if (publicNote) item.note = publicNote;
+   delete item.auto_update;
+   return normalizePublicIpFields(item);
+ }

@@ -29,3 +29,8 @@ dist-ssr
 /.claude/
 
 /release/
+
+cfsm/node_modules/
+cfsm/dist/
+cfsm/test-results/
+cfsm/playwright-report/
