@@ -5,13 +5,12 @@ import { state } from '../composables/useMonitor.js'
 import { themeOptions } from '../composables/useTheme.js'
 import { running, memory, size, percentage, ratio, virtualization, monthlyPrice } from './data.js'
 import { daysLeft } from '../utils/display.js'
+import { collapsed } from './useMatrixUI.js'
 import MatrixMap from './MatrixMap.vue'
 import MatrixCard from './MatrixCard.vue'
 import Sparkline from './Sparkline.vue'
 import Icon from '../components/Icon.vue'
 const search = ref(''), status = ref('all'), order = ref('default')
-const collapsed = ref(localStorage.getItem('cfsm-matrix:map') === 'hidden')
-function toggleMap() { collapsed.value = !collapsed.value; localStorage.setItem('cfsm-matrix:map',collapsed.value ? 'hidden' : 'shown') }
 const onlineNodes = computed(()=>nodes.value.filter(item=>running(item.server,now.value)))
 const sum = (field, active=false) => (active ? onlineNodes.value : nodes.value).reduce((total,item)=>total+(Number(item.server[field])||0),0)
 const types = field => Object.entries(nodes.value.reduce((result,item)=>{const key=field(item.server);result[key]=(result[key]||0)+1;return result},{}))
@@ -35,7 +34,7 @@ const filtered = computed(()=>{
 })
 const daily = field => nodes.value.some(item=>item.server[field]!==undefined) ? size(sum(field)) : '—'
 </script>
-<template><div class="home-page"><div class="map-toggle"><button @click="toggleMap">{{ collapsed ? '展开地球' : '收起地球' }}</button></div><MatrixMap v-if="!collapsed" :items="nodes"/>
+<template><div class="home-page"><MatrixMap v-if="!collapsed" :items="nodes"/>
 <section v-if="themeOptions.show_summary!==false" class="overview-grid">
  <article class="box overview"><div class="spread"><label><Icon name="server"/>节点总览</label><small>{{ percentage(nodes.length ? onlineNodes.length/nodes.length*100 : null) }} 在线</small></div><strong>{{ onlineNodes.length }}<small> / {{ nodes.length }}</small></strong><p :class="nodes.length-onlineNodes.length?'warn':'muted'">{{ nodes.length-onlineNodes.length ? `${nodes.length-onlineNodes.length} 台离线待机`:'全部在线 · 实时守护' }}</p></article>
  <article class="box overview architectures"><div class="spread"><label><Icon name="network"/>类型与架构</label><small class="chip">共 {{ nodes.length }} 台</small></div><div class="spread"><span>虚拟化</span><span><b v-for="[key,value] in types(virtualization)" :key="key" class="chip">{{ key }} {{ value }}</b></span></div><div class="spread"><span>系统架构</span><span><b v-for="[key,value] in types(s=>s.arch||'未知')" :key="key" class="chip">{{ key }} {{ value }}</b></span></div></article>

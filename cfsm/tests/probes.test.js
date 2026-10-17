@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { cardProbeValue, probeAverage, probeValueText, probeSamples, historyPercent, diskIo } from '../src/utils/probes.js'
+import { cardProbeValue, probeAverage, probeValueText, probeSamples, historyPercent, diskIo, hourlyProbeServer } from '../src/utils/probes.js'
 import { probeTone } from '../src/utils/display.js'
 
 test('CF window uses latest valid ping and mean measured loss, including zero', () => {
@@ -23,6 +23,14 @@ test('CF color thresholds distinguish measured loss from missing samples', () =>
   assert.equal(probeTone(null), 'bad')
   assert.deepEqual([0, 0.2, 5, 20].map(value => probeTone(value, true)), ['good', 'info', 'warn', 'bad'])
   assert.deepEqual([0, 80, 160, 240].map(value => probeTone(value)), ['good', 'info', 'warn', 'bad'])
+})
+test('card 1H trend clips the backend two-hour window by actual timestamps', () => {
+  const now = 1700000000000
+  const server = { ping: [{ ts: now - 7200000, ct: 400 }, { ts: now - 3600000, ct: 0 }, { timestamp: (now - 60000) / 1000, ct: null }], loss: [{ ts: now - 7200000, ct: 100 }, { ts: now - 60000, ct: 2 }] }
+  const clipped = hourlyProbeServer(server, now)
+  assert.deepEqual(probeSamples(clipped, 'ping', 'ct'), [0, null])
+  assert.equal(cardProbeValue(clipped, 'loss', 'ct', true), 2)
+  assert.equal(server.ping.length, 3)
 })
 
 test('CF resource histories use percentages and parse both disk IO payload formats', () => {

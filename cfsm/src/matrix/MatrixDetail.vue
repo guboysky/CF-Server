@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { state, changeHours } from '../composables/useMonitor.js'
 import { now, region } from '../composables/useView.js'
 import { probes, probeLabel, timestamp, gpuInfo } from '../utils/metrics.js'
@@ -12,6 +12,9 @@ import DonutPanel from './DonutPanel.vue'
 import Icon from '../components/Icon.vue'
 const server=computed(()=>state.detail), site=computed(()=>state.sites[state.page?.site||0])
 const tab=ref('resources'), resourceView=ref('all'), latencyView=ref('compare'), lossMode=ref(false), trim=ref(false), hidden=ref([]), hoveredHeat=ref(null)
+let latencyOpened=false
+function openTab(value){tab.value=value;if(value==='latency'&&!latencyOpened){latencyOpened=true;if(state.hours!==24)void changeHours(24)}}
+watch(()=>`${state.page?.site||0}:${state.page?.id}`,()=>{latencyOpened=false;tab.value='resources'})
 const labels={all:'全景仪表',curves:'时序曲线',heat:'负载热力',donuts:'占比饼图',connections:'连接进程'}
 const ranges=[{hours:.167,label:'实时'},{hours:1,label:'1 小时'},{hours:6,label:'6 小时'},{hours:24,label:'1 天'},{hours:168,label:'7 天'},{hours:720,label:'30 天'}]
 const rangeLabel=computed(()=>ranges.find(item=>item.hours===state.hours)?.label||`${state.hours} 小时`)
@@ -61,7 +64,7 @@ const heatColor=value=>value===null?'var(--soft)':value<10?'var(--soft)':value<4
   <article class="box fact-panel"><h3><Icon name="pulse"/>网络吞吐与流量</h3><dl><div><dt>实时速率</dt><dd>↓ {{ live?size(server.net_in_speed):'—' }}/s · ↑ {{ live?size(server.net_out_speed):'—' }}/s</dd></div><div><dt>{{ server.net_rx_daily!==undefined?'今日流量':'当前窗口流量' }}</dt><dd>↓ {{ size(server.net_rx_daily??netRx) }} · ↑ {{ size(server.net_tx_daily??netTx) }}</dd></div><div v-if="site.sysConfig.show_tf!==false"><dt>本月用量</dt><dd>{{ quota.detail.replaceAll('iB','B') }}</dd></div></dl></article>
   <article class="box fact-panel"><h3><Icon name="calendar"/>服务周期与连接</h3><dl><div v-if="site.sysConfig.show_price!==false"><dt>资费周期</dt><dd>{{ billing(server,'zh')||'—' }}</dd></div><div v-if="site.sysConfig.show_expire!==false"><dt>到期时间</dt><dd>{{ dateText(server.expire_date) }}</dd></div><div><dt>连接追踪</dt><dd>TCP {{ server.tcp_conn??'—' }} · UDP {{ server.udp_conn??'—' }}</dd></div></dl></article>
  </section>
- <div class="detail-tabs"><div class="segmented"><button :aria-pressed="tab==='resources'" @click="tab='resources'">资源</button><button :aria-pressed="tab==='latency'" @click="tab='latency'">网络延迟</button></div><div class="range-tabs"><button v-for="range in ranges" :key="range.hours" :aria-pressed="state.hours===range.hours" :disabled="range.hours>168" :title="range.hours>168?'当前 CF 程序最多保留 7 天历史':range.label" @click="state.hours!==range.hours&&changeHours(range.hours)">{{ range.label }}</button><select :value="state.hours" aria-label="历史趋势" @change="changeHours(Number($event.target.value))"><option v-for="h in [.167,.5,1,6,12,24,48,96,168]" :key="h" :value="h">{{ h===.167?'10 分钟':h===.5?'30 分钟':`${h} 小时` }}</option></select></div></div>
+ <div class="detail-tabs"><div class="segmented"><button :aria-pressed="tab==='resources'" @click="openTab('resources')">资源</button><button :aria-pressed="tab==='latency'" @click="openTab('latency')">网络延迟</button></div><div class="range-tabs"><button v-for="range in ranges" :key="range.hours" :aria-pressed="state.hours===range.hours" :disabled="range.hours>168" :title="range.hours>168?'当前 CF 程序最多保留 7 天历史':range.label" @click="state.hours!==range.hours&&changeHours(range.hours)">{{ range.label }}</button><select :value="state.hours" aria-label="历史趋势" @change="changeHours(Number($event.target.value))"><option v-for="h in [.167,.5,1,6,12,24,48,96,168]" :key="h" :value="h">{{ h===.167?'10 分钟':h===.5?'30 分钟':`${h} 小时` }}</option></select></div></div>
  <p v-if="state.historyLoading" role="status" class="muted">正在加载历史数据…</p>
  <section v-if="tab==='resources'" class="box sla-panel"><div class="spread"><label><Icon name="clock"/>服务可用性 · {{ rangeLabel }} 遥测窗口</label><span>历史采样覆盖 <b>{{ percentage(coverage) }}</b></span></div><div class="sla-blocks"><span v-for="(bucket,index) in buckets" :key="index" :class="{present:bucket.count}" :title="`${dateTime(bucket.begin)} — ${dateTime(bucket.end)} · ${bucket.count} 个采样`"/></div><div class="spread muted"><small>{{ rangeLabel }}前</small><small>● 有采样　○ 无采样（不等同精确 SLA）</small><small>当前</small></div></section>
  <template v-if="tab==='resources'"><div class="analysis-heading spread"><strong><Icon name="pulse"/>主机资源分析测控 <small>· 涵盖最近 {{ rangeLabel }} · 共 {{ rows.length }} 采样点</small></strong><nav class="segmented"><button v-for="(label,key) in labels" :key="key" :aria-pressed="resourceView===key" @click="resourceView=key">{{ label }}</button></nav></div>

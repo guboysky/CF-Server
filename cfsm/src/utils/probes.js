@@ -27,6 +27,14 @@ export function cardProbeValue(server, field, key, windows) {
   if (field === 'loss') return probeAverage(values) ?? probeNumber(server[`loss_${key}`])
   return [...values].reverse().find(value => probeNumber(value) !== null) ?? server[`ping_${key}`]
 }
+export function hourlyProbeServer(server, now = Date.now()) {
+  const cutoff = now - 3600000
+  const window = field => (Array.isArray(server[field]) ? server[field] : []).filter(point => {
+    const time = timestamp(point?.ts ?? point?.timestamp)
+    return !time || time >= cutoff && time <= now
+  })
+  return { ...server, ping: window('ping'), loss: window('loss') }
+}
 export function historyPercent(row, used, total) {
   const numerator = probeNumber(row[used]), denominator = probeNumber(row[total])
   return numerator === null || denominator === null ? undefined : denominator === 0 ? 0 : numerator / denominator * 100
