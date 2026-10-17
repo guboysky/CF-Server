@@ -39,3 +39,15 @@ export function activityBuckets(rows, hours, now = Date.now(), count = 24) {
     return { begin, end, count: samples.length, cpu: average(samples.map(row => row.cpu)), peak: maximum(samples.map(row => row.cpu)), ram: average(samples.map(row => row.ram_used)), rx: average(samples.map(row => row.net_in_speed)), tx: average(samples.map(row => row.net_out_speed)) }
   })
 }
+
+export function trafficComposition(rows, server) {
+  const windowReady = rows.length>1 && number(rows[0].net_rx)!==null && number(rows[0].net_tx)!==null
+  const candidates = [
+    ['window','当前窗口流量构成',windowReady?counterDifference(rows,'net_rx'):null,windowReady?counterDifference(rows,'net_tx'):null],
+    ['monthly','本月流量构成',number(server.net_rx_monthly),number(server.net_tx_monthly)],
+    ['total','累计流量构成',number(server.net_rx),number(server.net_tx)]
+  ]
+  const [source,title,rx,tx] = candidates.find(([, ,rx,tx])=>rx!==null&&tx!==null) || ['missing','上下行流量构成',null,null]
+  const total=rx===null||tx===null?null:rx+tx
+  return { source,title,rx,tx,value:total>0?rx/total*100:null,label:total===null?'暂无流量数据':total===0?'暂无流量':'下行占比' }
+}

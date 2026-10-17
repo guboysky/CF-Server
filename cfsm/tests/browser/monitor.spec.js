@@ -57,6 +57,7 @@ for (const isPublic of [true,false]) for(const turnstile of [false,true]) test(`
 })
 test('matrix homepage map, search, status, sort and collapse reuse one CF snapshot',async({page})=>{
  const ctx=await mock(page,{nodes:6});await page.goto('/');await expect(page.locator('.cf-card')).toHaveCount(6)
+ await expect(page.locator('.matrix-map')).toHaveCount(0);await page.getByRole('button',{name:'展开地球',exact:true}).click()
  await expect(page.locator('.overview-grid>.overview')).toHaveCount(8)
  await page.locator('.region-list button').filter({hasText:'HK'}).click();await expect(page.locator('.cf-card')).toHaveCount(1)
  await page.getByRole('button',{name:/清除地区/}).click();await page.getByRole('textbox',{name:'搜索节点'}).fill('Frankfurt');await expect(page.locator('.cf-card')).toHaveCount(1)
@@ -117,7 +118,7 @@ test('never-connected nodes show onboarding instead of zero telemetry',async({pa
 test('connection lifetime needs manual continuation',async({page})=>{const ctx=await mock(page,{timeout:.005});await page.goto('/');await expect(page.getByRole('button',{name:'继续实时监控'})).toBeVisible();await page.getByRole('button',{name:'继续实时监控'}).click();await expect.poll(()=>ctx.sockets.length).toBe(2)})
 test('matrix screenshots desktop, latency and mobile without overflow',async({page})=>{
  await page.emulateMedia({reducedMotion:'reduce'});const ctx=await mock(page,{nodes:6,serverData:{ping_ct:23,ping_cu:9,ping_cm:42,loss_ct:.8,loss_cu:.4,loss_cm:.8,ping:Array.from({length:24},(_,i)=>({ct:23+i%4,cu:9+i%3,cm:42+i%5})),loss:Array.from({length:24},(_,i)=>({ct:i===12?2:0,cu:i===18?2:0,cm:0}))},historyData:Array.from({length:24},(_,i)=>({ping_ct:23+i%5,ping_cu:9+i%4,ping_cm:42+i%6,loss_ct:i===4?2:0,loss_cu:0,loss_cm:0}))})
- await page.setViewportSize({width:1920,height:1080});await page.goto('/');await expect(page.locator('.map-marker')).toHaveCount(6)
+ await page.setViewportSize({width:1920,height:1080});await page.goto('/');await expect(page.locator('.matrix-map')).toHaveCount(0)
  expect((await page.locator('.matrix-shell').boundingBox()).width).toBe(1380)
  await expect(page.locator('.header-actions .globe-toggle svg')).toHaveCount(1)
  await expect(page.locator('.map-toggle')).toHaveCount(0)
@@ -198,8 +199,8 @@ test('detail audit: units, missing counters, flat Disk IO and same-batch peaks r
  await expect(page.locator('.fact-panel').nth(1)).toContainText('2.0 GB / 8.0 GB')
  const memory=page.locator('.resource-curves .chart-card').nth(1)
  await memory.locator('svg').hover({position:{x:71,y:60}});await expect(memory.locator('.plot-tooltip')).toContainText('1.0 GB')
- await expect(page.locator('.donut-panel').last()).toContainText('未提供窗口计数')
- await expect(page.locator('.donut-panel').last()).toContainText('下行: —')
+ await expect(page.locator('.donut-panel').last()).toContainText('本月流量构成')
+ await expect(page.locator('.donut-panel').last()).toContainText('下行: 27.0 GB')
  await expect.poll(()=>ctx.sockets.length).toBe(1)
  const time=Date.now();ctx.sockets[0].ws.send(JSON.stringify({type:'batchUpdate',updates:[{serverId:'one',samples:[{ts:time-100,data:{cpu:99,ram_used:256}},{ts:time,data:{cpu:0,ram_used:512}}]}]}))
  await expect(page.locator('.resource-curves .chart-card').first()).toContainText('峰值: 99%')
@@ -208,4 +209,13 @@ test('detail audit: units, missing counters, flat Disk IO and same-batch peaks r
  const read=page.locator('.chart-card').filter({has:page.getByText('磁盘读取',{exact:true})})
  await expect(read).toBeVisible();await read.locator('svg').hover({position:{x:71,y:60}});await expect(read.locator('.plot-tooltip')).toContainText('0 B/s')
  expect(count(ctx,'/api/history/all')).toBe(1);expect(ctx.pageErrors).toEqual([])
+})
+
+test('globe defaults closed after upgrade and remembers the new explicit toggle',async({page})=>{
+ await mock(page)
+ await page.addInitScript(()=>localStorage.setItem('cfsm-matrix:map','shown'))
+ await page.goto('/');await expect(page.locator('.cf-card')).toBeVisible();await expect(page.locator('.matrix-map')).toHaveCount(0)
+ await page.getByRole('button',{name:'展开地球',exact:true}).click();await expect(page.locator('.matrix-map')).toHaveCount(1)
+ await page.reload();await expect(page.locator('.matrix-map')).toHaveCount(1)
+ await page.getByRole('button',{name:'收起地球',exact:true}).click();await page.reload();await expect(page.locator('.cf-card')).toBeVisible();await expect(page.locator('.matrix-map')).toHaveCount(0)
 })
