@@ -24,7 +24,7 @@ export const regions = computed(() => [...new Set(nodes.value.map(item => region
 let deadline
 export function refreshClock() {
   clearTimeout(deadline); now.value = Date.now()
-  const next = nodes.value.map(item => timestamp(item.server.last_updated) + 300000).filter(value => value > now.value)
+  const next = [...nodes.value.map(item => timestamp(item.server.last_updated) + 300000), timestamp(state.detail?.last_updated) + 300000].filter(value => value > now.value)
   if (next.length) deadline = setTimeout(refreshClock, Math.max(1000, Math.min(...next) - now.value + 1))
 }
 export function clearClock() { clearTimeout(deadline) }

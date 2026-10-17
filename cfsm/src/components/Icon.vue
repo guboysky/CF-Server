@@ -1,6 +1,7 @@
 <script setup>
 defineProps({ name: String, size: { type: [Number, String], default: 18 } })
 const paths = {
+  globe: 'M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0 M2 12h20 M12 2c-6 5-6 15 0 20 M12 2c6 5 6 15 0 20',
   wallet: 'M3 5h17v15H3z M3 5V3h14 M15 10h7v6h-7z M18 13h.01',
   pulse: 'M2 12h4l3-7 5 14 3-7h5', cpu: 'M4 4h16v16H4z M8 8h8v8H8z M9 1v3m6-3v3M9 20v3m6-3v3M1 9h3m-3 6h3m16-6h3m-3 6h3',
   memory: 'M3 6h18v12H3z M7 10v4m5-4v4m5-4v4M6 18v3m4-3v3m4-3v3m4-3v3', disk: 'M5 3h14v18H5z M8 6h8M8 17h.01M12 17h4',

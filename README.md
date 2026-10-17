@@ -1,4 +1,4 @@
-> **CF-Server-Monitor 适配版：** 请查看 [cfsm/README.md](cfsm/README.md)。CF 版本源码在 cfsm-port 分支，安装产物在 cfsm-dist 分支。下面原项目说明对应 monitor 平台，上传 theme.tar.gz 的步骤不适用于 CF。
+> **CF-Server-Monitor 黑白 Flat Matrix 主题：** 请查看 [cfsm/README.md](cfsm/README.md)。CF 版本源码在 cfsm-port 分支，安装产物在 cfsm-dist 分支。下面原项目说明对应 monitor 平台，上传 theme.tar.gz 的步骤不适用于 CF。
 
 # monitor-theme-huilang
 

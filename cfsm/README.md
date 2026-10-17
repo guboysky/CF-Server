@@ -1,45 +1,39 @@
-# Huilang 终端主题 · CF-Server-Monitor 适配版
+# Flat Matrix · CF-Server-Monitor 主题
 
-将同仓库 Huilang 1.0.13（原 monitor 平台）适配到 CF-Server-Monitor，独立 Vue 3 + Vite、hash 路由。保留终端配色、扫描线、透明面板、三列卡片、动态环形指标、列表、离线世界地图、地区筛选、中英文、手机布局，以及单机资源/延迟/丢包图表。原 monitor 主题源代码和安装包不变，CF 版本单独放在 cfsm/。
+按用户指定的 https://vps.8899.in 页面和三张参考截图重新实现黑白平面矩阵主题。首页、资源详情和网络延迟页使用 CF 公共接口数据；原仓库根目录 monitor 主题保留，当前 CF 应用在 cfsm/。
 
-## 在 CF 后台安装
+## 安装
 
-后台「主题商店 → 自定义主题 URL」填写 `https://github.com/guboysky/CF-Server/tree/cfsm-dist`，先预览，再应用。固定版本把 cfsm-dist 替换为该分支完整提交 SHA。**不能把原 theme.tar.gz 上传到 CF 后台，也不能用源码 cfsm-port 地址安装。**
+CF 后台「主题商店 → 自定义主题 URL」填写 `https://github.com/guboysky/CF-Server/tree/cfsm-dist`，预览后应用。固定版本使用构建分支完整提交 SHA。构建根目录只有 index.html 和 assets/。不上传原 theme.tar.gz，不使用源码 cfsm-port 地址安装。
 
-CF 由 Worker 代理 index.html 和 assets/；构建根目录仅这两项。地图 JSON 在 assets 内打包，不请求地图瓦片；旗帜和系统图标使用 Worker 的 /flags/ 和 /os-icons/。管理后台继续访问 `/admin#/admin`。
+## 页面与交互
 
-背景优先沿用 CF 后台「设置 → 外观」的背景图；也支持 config.theme_options.background_url、构建 BACKGROUND_IMAGE。原主题默认背景 URL 仍保留为后备（第三方素材权利归原作者），CF CSP 若未允许该图片来源会阻止加载；请在后台静态资源域名中允许对应图片域名，或设置自己的已允许背景。无背景时仍显示终端配色，不影响数据。面板透明度可读 theme_options.panel_opacity（0.3–1）。
+- 首页：可折叠的全球平面地图、地区在线列表和筛选；8 项汇总；分币种月/年费用、到期排行；搜索、在线/离线筛选和排序；4 列节点卡片、未接入/离线状态、三网延迟小曲线及平均丢包。手机自动单列。
+- 资源详情：节点状态和运行摘要，4 栏系统/内存存储/网络流量/服务周期；历史采样覆盖条；4 项资源汇总，3 个占比圆环，24 个时间分段热力块；CPU、内存、网络对数速率、磁盘长幅曲线。全景/曲线/热力/占比/连接进程切换；扩展 Disk IO 和 GPU 数据有值时展示。
+- 延迟详情：线路现值、均值和极值、走势；选中/关闭、单线聚焦；聚合对比、分轨矩阵、延迟排行；智能削峰、时间区间滑块、图例开关、完整日期时间悬浮提示；可切换丢包率。
+- 深浅色与地图折叠保存在浏览器。首页标题来自 CF 配置。使用纯色背景以匹配参考图，不叠加旧终端扫描线和图片。
 
-## 数据与 D1 消耗边界
+## 数据边界
 
-- /api/config 每站生命周期一次；首页 /api/servers 首次一次。首页只用 CF /api/ws?subscribe=all 和订阅 all IDs 更新，批量采样合并后全局每秒最多一次渲染。
-- 独立详情仅 /api/server?id=、/api/history/all?id=&hours=0.167，以及当前单机 WebSocket。仅进入详情或用户切换范围才加载历史，支持 10/30 分钟及 1/6/12/24/48/96/168 小时；不因为切换图例、布局、筛选或缩放补查。
-- 卡片延迟/丢包色条只读 servers 返回的 ping/loss 窗口，分别取各探针；不沿用原主题每卡片每分钟查询历史，不做 5 秒 REST 兜底轮询，不使用 setInterval。
-- 隐藏页面断开，恢复只额外读当前列表/单机快照；不重新读 config/历史。指数退避最多六次，连接时限到达需点击继续。
-- JWT、同源 Cookie、跨域 WS token、Turnstile 凭证缓存及 401/403 处理沿用 CF 协议。未登录私站跳转 Worker 后台。模拟验证不代表真实 Cloudflare 挑战已通过。
-- 内存/磁盘单位从 CF 的 MiB 转换；traffic_limit 按 GiB，尊重 monthly 计数及 dl/ul/max/total 口径。离线实时值显示 —，零值保留；null 探针显示超时，false/缺失不填零。
-- 公开字段不包含的精确位置、虚拟化、Agent 版本、备注等不补管理 API，不伪造。地图位置是国家/地区代表点，不是服务器坐标；HK/MO/TW/SG 单独标记。
+- config 每站生命周期一次；首页仅一次 servers 快照，后续依赖 WS。独立详情不取列表，只取当前 server、history/all 和当前节点 WS。隐藏恢复只刷新当前快照。
+- 全局每秒合并实时数据；无 REST 轮询。布局/筛选/图例/缩放/详情页内切换共用数据，不追加历史查询。仅详情首次进入或用户改时间范围请求 history/all。
+- 卡片仅使用列表自带 ping/loss 窗口，不为每卡片查询历史。窗口按时间排序，延迟为最新有效值，丢包为有效窗口平均值；有符号的 null/false/0 不混淆。详情均值保留有效零值，排除超时、缺失和禁用；不把超时伪造成 100% 丢包。
+- CF 内存、磁盘为 MiB，图表转换为字节；traffic_limit 为 GiB，遵守 monthly 和 dl/ul/max/total 口径。计数器差值计算窗口流量，遇重置不计为负值。接口没有今日流量时，首页显示 —，详情改标当前窗口流量。
+- 费用按原币种分别折算月费/年费，不编造汇率。虚拟化、备注、位置等缺失字段不补管理接口、不按名字伪造。地图按 CF 提供的国家地区展示代表点，不冒充精确机房位置。
+- 覆盖条反映当前范围的真实采样覆盖，不冒充精确 SLA 在线率。没有采样的时间段留空，曲线遇缺失或较长采样空档断开。智能削峰只调整显示范围，不改原始统计。
+- CF 参考后端 fa60c60d7a5e872c874fe92822206b32d072c3af 最多支持 168 小时；“30 天”保留禁用入口并说明限制，不发送无效 720 小时请求。仍支持 10/30 分钟、1/6/12/24/48/96/168 小时（时间控件可用标准范围）。
+- JWT、Cookie、跨站 WS token、Turnstile 缓存、401/403 和手动继续连接保留。docs/ 中可选后端补丁未部署。原后端公开 note 过滤和 Turnstile 可复用凭证返回缺口仍存在。
 
-原 CF 后端参考提交 `fa60c60d7a5e872c874fe92822206b32d072c3af` 会过滤 note，且 Turnstile 首次数据响应存在可复用凭证返回缺口。docs/ 中为可选后端补丁，未部署；后台原始备注不会绕过接口读取。
+## 构建与验证
 
-## 构建和验收
+在 cfsm/ 内执行 `npm ci`、`npm test`、`npm run test:e2e`、`npm run build`，Node.js 22。
 
-在 cfsm 目录执行 `npm ci`、`npm test`、`npm run test:e2e`、`npm run build`。Node.js 22。测试截图在 artifacts，全部为模拟数据。Vue 源码只实现 CF 协议；仓库根 src/ 仍是原 monitor 主题，运行两套项目时注意工作目录。
+17 项单元测试 + 15 项浏览器测试：包含四种公开/Turnstile 模拟组合、401/403、跨站 JWT、连接时限、隐藏恢复、无轮询、零值/缺失/丢包均值、地图筛选、搜索排序、资源视图、热力/占比、延迟矩阵/排行/单线/滑块、未接入状态、桌面和手机无溢出。模拟截图见 artifacts/matrix-*.png。
 
-主题设置读 config.theme_options：layout=bar/ring/list/map、notice、background_url、panel_opacity、show_summary、show_price、show_latency。价格/到期开关遵守 CF 返回的 sysConfig。访客视图、语言和深浅色偏好只保存在当前浏览器。没有移植 monitor 的 /api/me、节点监控历史、gzip 协议或后台。
+本地构建连接真实公开站点：12 节点，首页/单机 WS 合计 20 次 batchUpdate；config、servers、server、history/all 各一次，无页面错误或横向溢出。真实截图只存本机临时目录，未提交真实节点资料。真实私站/Turnstile 开启组合未验收，此记录不表示已替用户应用线上主题。
 
-GitHub Actions 对 PR 执行测试和构建；合并到 main/master 或手动运行后，追加 cfsm-dist 历史，不 force push，保持源提交信息。源码 PR 在完成真实站点各登录/Turnstile 组合验收前保持草稿。UI/协议模拟测试和公开关验证站点检查不等同四种组合全通过。
+GitHub Actions 对源码 PR 运行测试与构建；构建分支追加提交、不强推，提交信息与源码一致。旧 Huilang CF 版本可用历史固定提交 fcf201a942ee947435f593e042329304edf5d6e0 安装。
 
 ## 许可
 
-保留仓库 LICENSE、LICENSE-CF；CF 适配器及图表复用来源为 guboysky/cfsm-theme-ink，对应许可见 docs/LICENSE-adapter.txt。构建随 assets/LICENSE.txt 分发。地图数据来自 CF-Server-Monitor。
-
-## 本次验收记录
-
-本地单元测试 14 项，浏览器测试 15 项，覆盖四种公开/Turnstile 模拟组合、401/403、跨站 JWT、隐藏恢复、无轮询、布局/地图/筛选、独立详情、窗口平均丢包率、详情平均值与文字对比度、资源百分比、Disk IO/GPU 单位及截图。已用本地构建连接用户现有公开 CF 站点：12 个节点，首页与单机 WS 合计收到 19 个 batchUpdate；config、servers、server、history/all 各一次，无页面错误及横向溢出。真实截图仅保留本机临时目录，未上传仓库；此记录不代表已替用户应用线上主题。真实 Turnstile 和私有登录组合仍待验收。
-
-### 与 CF 默认主题的数据口径对齐
-
-参考 [CF 默认卡片](https://github.com/huilang-me/CF-Server-Monitor/blob/fa60c60d7a5e872c874fe92822206b32d072c3af/src/frontend/composables/useServerCardData.js) 及 [默认详情](https://github.com/huilang-me/CF-Server-Monitor/blob/fa60c60d7a5e872c874fe92822206b32d072c3af/src/frontend/views/ServerDetail.vue)：卡片按窗口时间排序，显示最新有效延迟和窗口平均丢包；无有效窗口时回退到快照。详情显示选中范围的平均延迟/丢包，排除缺失、禁用和超时，保留有效零值。延迟红点表示高延迟或超时，不等于测得 100% 丢包；丢包缺失用灰点和 — 表示，不从超时推算百分比。微量丢包保留两位小数，低于 0.01% 显示 <0.01%。丢包色阶为 0 绿、(0,5) 蓝、[5,20) 黄、≥20 红；延迟分界为 80/160/240ms。
-
-RAM/Swap、磁盘历史图使用百分比；容量摘要仍按 MiB 换算为字节。网络使用 bytes/s；Disk IO 支持对象和 JSON 字符串，分别显示吞吐、IOPS、await、util，避免把不同单位当成字节。GPU 可用字段分别显示利用率、显存、SM 时钟、功耗。探针配色固定，切换延迟/丢包不查询新历史；悬浮时间含日期和秒。WS 仅上报其他指标时，不把保留的旧探针值当成新测量计入平均。
+保留根 LICENSE、LICENSE-CF 和 cfsm/docs/LICENSE-adapter.txt；地图来自 CF-Server-Monitor，构建随 assets/LICENSE.txt 分发。界面按参考截图独立实现，未复制参考站脚本或真实节点数据。
