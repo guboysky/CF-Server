@@ -118,7 +118,7 @@ test('connection lifetime needs manual continuation',async({page})=>{const ctx=a
 test('matrix screenshots desktop, latency and mobile without overflow',async({page})=>{
  await page.emulateMedia({reducedMotion:'reduce'});const ctx=await mock(page,{nodes:6,serverData:{ping_ct:23,ping_cu:9,ping_cm:42,loss_ct:.8,loss_cu:.4,loss_cm:.8,ping:Array.from({length:24},(_,i)=>({ct:23+i%4,cu:9+i%3,cm:42+i%5})),loss:Array.from({length:24},(_,i)=>({ct:i===12?2:0,cu:i===18?2:0,cm:0}))},historyData:Array.from({length:24},(_,i)=>({ping_ct:23+i%5,ping_cu:9+i%4,ping_cm:42+i%6,loss_ct:i===4?2:0,loss_cu:0,loss_cm:0}))})
  await page.setViewportSize({width:1920,height:1080});await page.goto('/');await expect(page.locator('.map-marker')).toHaveCount(6)
- expect((await page.locator('.matrix-shell').boundingBox()).width).toBe(1500)
+ expect((await page.locator('.matrix-shell').boundingBox()).width).toBe(1380)
  await expect(page.locator('.header-actions .globe-toggle svg')).toHaveCount(1)
  await expect(page.locator('.map-toggle')).toHaveCount(0)
  await expect(page.locator('.cf-card').first().locator('.node-title>strong .os-icon')).toHaveCount(1)

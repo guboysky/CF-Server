@@ -18,8 +18,8 @@
 .probe-card{cursor:pointer}.solo-button{background:transparent;border:0;font-size:11px;color:var(--muted);padding:1px 3px}.solo-button:hover{color:var(--foreground);text-decoration:underline}
 .range-tabs select{display:block;max-width:90px;font-size:10px;padding:5px;background:var(--soft);border:1px solid var(--border)}
 /* Compact centered layout: the header and every page share the same width. */
-.matrix-shell{max-width:1500px!important;width:100%;padding-inline:24px}
-.site-header{padding-inline:max(24px,calc((100vw - 1452px)/2))}
+.matrix-shell{max-width:1380px!important;width:100%;padding-inline:24px}
+.site-header{padding-inline:max(24px,calc((100vw - 1332px)/2))}
 .header-actions{display:flex;align-items:center;gap:8px}.globe-toggle[aria-pressed=false]{opacity:.45}
 .home-page{padding-top:24px}.matrix-cards{grid-template-columns:repeat(4,minmax(0,1fr))}
 .node-badges{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap;flex-shrink:0}.expiry-chip{color:var(--muted);font-size:10px}
@@ -27,7 +27,7 @@
 .detail-facts-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
 @media(max-width:1050px){.detail-facts-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.matrix-shell{padding-inline:15px}.site-header{padding-inline:18px}.home-page{padding-top:18px}.matrix-cards,.detail-facts-grid{grid-template-columns:1fr}.node-title>strong{flex-basis:100%}.node-badges{justify-content:flex-start}.node-sub{margin-top:7px}}
-/* Four compact cards fit in the centered 1500px page. */
+/* Four compact cards fit in the centered 1380px page. */
 .matrix-card{padding:16px 13px}.node-title>strong{flex-basis:100%;min-width:0}.node-badges{justify-content:flex-start;gap:5px;max-width:100%}
 .card-metrics{margin-top:18px;column-gap:12px}.card-metric small{font-size:9px}
 .carrier-row{grid-template-columns:28px 48px minmax(18px,1fr) 36px;gap:5px}
