@@ -3,11 +3,11 @@ import { apiBases } from '../utils/config.js'
 import * as api from '../utils/api.js'
 import { redirectLogin } from '../utils/http.js'
 import { createSocket } from '../utils/socket.js'
-import { timestamp, probes } from '../utils/metrics.js'
+import { historyCadence, liveHistoryRows, mergeDetailHistory } from '../utils/detailHistory.js'
 import { observeDailyTraffic, observeDailyBatch } from '../utils/dailyTraffic.js'
 import { extendProbeWindows } from '../utils/probeTrend.js'
-export const state = reactive({ ready: false, error: '', page: null, loading: false, detail: null, rows: [], hours: 0.167, historyLoading: false, sites: apiBases.map(base => ({ base, config: null, servers: [], stats: {}, sysConfig: {}, status: 'paused', expired: false, socket: null })) })
-let generation = 0, historyGeneration = 0
+export const state = reactive({ ready: false, error: '', page: null, loading: false, detail: null, rows: [], hours: 6, historyInterval: 60000, historyLoading: false, sites: apiBases.map(base => ({ base, config: null, servers: [], stats: {}, sysConfig: {}, status: 'paused', expired: false, socket: null })) })
+let generation = 0, historyGeneration = 0, historyQueue = []
 export async function initialize() {
   try {
     await Promise.all(state.sites.map(async site => {
@@ -38,11 +38,9 @@ function startSocket(site, page, epoch) {
         const update = updates.get(String(page.id))
         if (!update) return
         state.detail = observeDailyBatch(site.base, state.detail, update, samples.get(String(page.id)))
-        const row = { ...state.detail, timestamp: update.sample_timestamp ?? update.last_updated }
-        // A retained snapshot field is not a new probe measurement.
-        for (const key of probes) for (const field of ['ping', 'loss']) row[`${field}_${key}`] = update[`${field}_${key}`]
-        const since = Date.now() - state.hours * 3600000
-        state.rows = [...state.rows.filter(item => timestamp(item.timestamp ?? item.last_updated) !== timestamp(row.timestamp)), row].filter(item => timestamp(item.timestamp ?? item.last_updated) >= since).sort((a, b) => timestamp(a.timestamp ?? a.last_updated) - timestamp(b.timestamp ?? b.last_updated)).slice(-2000)
+        const measured = liveHistoryRows(samples.get(String(page.id)) || [])
+        if (state.historyLoading) historyQueue = mergeDetailHistory(historyQueue, measured, state.hours)
+        state.rows = mergeDetailHistory(state.rows, measured, state.hours)
       } else {
         // Unchanged cards retain object identity. No reactive mutation per WS sample.
         site.servers = site.servers.map(server => updates.has(String(server.id)) ? observeDailyBatch(site.base, server, extendProbeWindows(server, updates.get(String(server.id)), samples.get(String(server.id))), samples.get(String(server.id))) : server)
@@ -56,7 +54,7 @@ export async function setPage(page, resume = false) {
   state.page = page
   state.error = ''
   state.loading = true
-  if (!resume) { state.hours = 0.167; state.rows = []; state.detail = null; historyGeneration++ }
+  if (!resume) { state.hours = 6; historyQueue = []; state.rows = []; state.detail = null; historyGeneration++ }
   try {
     if (page.id !== undefined) {
       const site = state.sites[page.site || 0]
@@ -65,7 +63,7 @@ export async function setPage(page, resume = false) {
       if (epoch !== generation) return
       state.detail = observeDailyTraffic(site.base, current)
       // History is fetched on entering a detail route or a user range change only.
-      if (!resume) await changeHours(0.167)
+      if (!resume) await changeHours(6)
       startSocket(site, page, epoch)
     } else {
       await Promise.all(state.sites.map(async site => {
@@ -85,9 +83,15 @@ export async function changeHours(hours) {
   if (!page?.id) return
   state.hours = hours
   state.historyLoading = true
+  historyQueue = []
   try {
     const rows = await api.history(state.sites[page.site || 0], page.id, hours)
-    if (epoch === generation && ticket === historyGeneration) state.rows = Array.isArray(rows) ? [...rows].sort((a, b) => timestamp(a.timestamp ?? a.last_updated) - timestamp(b.timestamp ?? b.last_updated)) : []
+    if (epoch === generation && ticket === historyGeneration) {
+      const history = Array.isArray(rows) ? rows : []
+      state.historyInterval = historyCadence(history)
+      state.rows = mergeDetailHistory(history, historyQueue, hours)
+      historyQueue = []
+    }
   } catch (error) { if (epoch === generation) state.error = error.message }
   finally { if (ticket === historyGeneration) state.historyLoading = false }
 }

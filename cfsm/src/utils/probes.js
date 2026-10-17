@@ -43,3 +43,11 @@ export function diskIo(value) {
   if (typeof value === 'string') { try { value = JSON.parse(value) } catch { return {} } }
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {}
 }
+
+export function rowDiskIo(row) {
+  const disk = { ...diskIo(row.disk) }
+  for (const field of ['read_bps','write_bps','read_iops','write_iops','await_ms','util']) {
+    if (probeNumber(disk[field])===null && probeNumber(row['disk_'+field])!==null) disk[field]=row['disk_'+field]
+  }
+  return disk
+}

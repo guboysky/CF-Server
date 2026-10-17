@@ -11,3 +11,14 @@ export function timeTicks(start, end, width) {
   if (!result.length) result.push({ value: start, ratio: 0, seconds: span < 60000 })
   return result
 }
+
+export function niceCeiling(value) {
+  if (!Number.isFinite(value) || value<=0) return 1
+  const magnitude=10**Math.floor(Math.log10(value)), normalized=value/magnitude
+  return ([1,2,5,10].find(step=>step>=normalized-1e-10)||10)*magnitude
+}
+export function tickLabel(tick) {
+  const date=new Date(tick.value)
+  const time=date.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',...(tick.seconds?{second:'2-digit'}:{})})
+  return tick.date?date.toLocaleDateString('zh-CN',{month:'numeric',day:'numeric'})+' '+time:time
+}

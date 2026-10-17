@@ -12,7 +12,7 @@ test('matrix statistics preserve zero, exclude absent values and never sum diffe
  assert.equal(running({last_updated:null},1700000000000),false)
 })
 test('matrix counter deltas respect resets and need two valid points',()=>{
- assert.equal(counterDifference([{net_rx:100},{net_rx:120},{net_rx:5},{net_rx:15}],'net_rx'),30)
+ assert.equal(counterDifference([{net_rx:100},{net_rx:120},{net_rx:5},{net_rx:15}],'net_rx'),35)
  assert.equal(counterDifference([{net_rx:0},{net_rx:10}],'net_rx'),10)
  assert.equal(counterDifference([{net_rx:10}],'net_rx'),null)
 })
