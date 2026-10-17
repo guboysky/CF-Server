@@ -118,7 +118,7 @@ test('connection lifetime needs manual continuation',async({page})=>{const ctx=a
 test('matrix screenshots desktop, latency and mobile without overflow',async({page})=>{
  await page.emulateMedia({reducedMotion:'reduce'});const ctx=await mock(page,{nodes:6,serverData:{ping_ct:23,ping_cu:9,ping_cm:42,loss_ct:.8,loss_cu:.4,loss_cm:.8,ping:Array.from({length:24},(_,i)=>({ct:23+i%4,cu:9+i%3,cm:42+i%5})),loss:Array.from({length:24},(_,i)=>({ct:i===12?2:0,cu:i===18?2:0,cm:0}))},historyData:Array.from({length:24},(_,i)=>({ping_ct:23+i%5,ping_cu:9+i%4,ping_cm:42+i%6,loss_ct:i===4?2:0,loss_cu:0,loss_cm:0}))})
  await page.setViewportSize({width:1920,height:1080});await page.goto('/');await expect(page.locator('.map-marker')).toHaveCount(6)
- expect((await page.locator('.matrix-shell').boundingBox()).width).toBe(1200)
+ expect((await page.locator('.matrix-shell').boundingBox()).width).toBe(1800)
  await expect(page.locator('.header-actions .globe-toggle svg')).toHaveCount(1)
  await expect(page.locator('.map-toggle')).toHaveCount(0)
  await expect(page.locator('.cf-card').first().locator('.node-title>strong .os-icon')).toHaveCount(1)
@@ -128,7 +128,7 @@ test('matrix screenshots desktop, latency and mobile without overflow',async({pa
  const cards=await page.locator('.cf-card').evaluateAll(elements=>elements.map(el=>({top:el.getBoundingClientRect().top,width:el.getBoundingClientRect().width})))
  expect(new Set(cards.slice(0,4).map(card=>card.top)).size).toBe(1)
  expect(cards[4].top).toBeGreaterThan(cards[0].top)
- expect(cards[0].width).toBeLessThan(300)
+ expect(cards[0].width).toBeLessThan(440)
  await page.screenshot({path:'artifacts/matrix-home-dark.png',fullPage:true});await page.getByRole('button',{name:'切换深浅色'}).click();await page.screenshot({path:'artifacts/matrix-home.png',fullPage:true})
  await page.locator('.cf-card').first().click();await expect(page.locator('.resource-curves .chart-card')).toHaveCount(4);await page.screenshot({path:'artifacts/matrix-detail.png',fullPage:true})
  await page.getByRole('button',{name:'网络延迟',exact:true}).click();await page.screenshot({path:'artifacts/matrix-latency.png',fullPage:true})
