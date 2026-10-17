@@ -33,3 +33,10 @@
 .carrier-row{grid-template-columns:28px 48px minmax(18px,1fr) 36px;gap:5px}
 @media(max-width:1050px){.matrix-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.matrix-cards{grid-template-columns:1fr}.matrix-card{padding:18px 17px}.carrier-row{grid-template-columns:40px 64px minmax(30px,1fr) 45px;gap:9px}.card-metric small{font-size:11px}}
+
+/* Compact summary and locally hosted variable typography. */
+:root{font-family:'Inter Variable','PingFang SC','Microsoft YaHei UI','Microsoft YaHei',sans-serif;font-variant-numeric:tabular-nums}
+.card-metric small,.banner-stats,.plot-tooltip,.fact-panel dd,.carrier-row strong,.carrier-row .loss-caption,.fee-currencies .chip{font-family:inherit}
+.overview-grid{gap:10px;margin:16px 0}.overview{padding:11px 13px;min-height:102px;gap:6px}.overview>strong{font-size:23px;line-height:1.15;letter-spacing:-.4px}.overview>p,.overview .spread{line-height:1.4}.overview-speed{gap:6px}.speed-sparks{height:28px}.speed-sparks .sparkline{height:24px;inset:2px 0}.overview-traffic{gap:5px}.overview-traffic>p{font-size:11px}
+.finance-grid{gap:10px;margin-bottom:15px}.fees,.expiry{padding:11px 13px;min-height:140px}.finance-grid .section-heading{padding-bottom:8px}.fee-body strong{font-size:22px}.fees>small{margin-top:8px}.expiry>a{padding:4px 0}.node-title>strong{font-weight:650}.card-metric small{font-size:10px}.carrier-row strong,.carrier-row .loss-caption{font-size:10px}.fact-panel dd{font-size:11px}
+@media(max-width:600px){.overview{padding:11px;min-height:105px}.overview>strong{font-size:21px}.fees,.expiry{min-height:125px}.card-metric small{font-size:11px}}

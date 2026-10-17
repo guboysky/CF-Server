@@ -1,9 +1,10 @@
 <script setup>
 import { computed } from 'vue'
 import { number } from './data.js'
-const props = defineProps({ values: { type: Array, default: () => [] }, color: { type: String, default: 'currentColor' }, fill: Boolean })
+import { sparklineBounds } from './sparkline.js'
+const props = defineProps({ values: { type: Array, default: () => [] }, color: { type: String, default: 'currentColor' }, fill: Boolean, focused: Boolean })
 const paths = computed(() => {
-  const valid = props.values.map(number).filter(value => value !== null), max = Math.max(1, ...valid), min = Math.min(0, ...valid)
+  const { min, max } = sparklineBounds(props.values, props.focused)
   const groups = []; let points = []
   props.values.forEach((value, index) => { const n = number(value); if (n === null) { if (points.length) groups.push(points); points = []; return }; points.push([index / Math.max(1, props.values.length - 1) * 160, 25 - (n - min) / (max - min) * 23]) })
   if (points.length) groups.push(points)

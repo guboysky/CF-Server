@@ -19,10 +19,10 @@ function unschedule(flush) {
 export function createSocket(site, scope, ids, handlers) {
   let socket, retryTimer, lifetimeTimer
   let stopped = false, attempts = 0, expired = false
-  const pending = new Map(), allowed = new Set(ids.map(String))
+  const pending = new Map(), pendingSamples = new Map(), allowed = new Set(ids.map(String))
   const minutes = Number(site.config.frontend_ws_timeout_minutes) || 0
   const flush = () => {
-    if (!stopped && pending.size) { handlers.update(new Map(pending)); pending.clear() }
+    if (!stopped && pending.size) { handlers.update(new Map(pending), new Map(pendingSamples)); pending.clear(); pendingSamples.clear() }
   }
   const connect = () => {
     if (stopped || expired || document.hidden) return
@@ -41,7 +41,11 @@ export function createSocket(site, scope, ids, handlers) {
       if (stopped) return
       try {
         const message = JSON.parse(event.data)
-        collectBatch(message, pending, allowed)
+        collectBatch(message, pending, allowed, (id, sample) => {
+          const samples = pendingSamples.get(id) || []
+          samples.push(sample)
+          pendingSamples.set(id, samples.slice(-600))
+        })
         if (pending.size) schedule(flush)
       } catch (error) { handlers.error(error.message) }
     }
@@ -62,6 +66,7 @@ export function createSocket(site, scope, ids, handlers) {
     stopped = true
     clearTimeout(retryTimer); clearTimeout(lifetimeTimer); unschedule(flush)
     pending.clear()
+    pendingSamples.clear()
     socket?.close()
     handlers.status('paused')
   }

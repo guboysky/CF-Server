@@ -3,7 +3,9 @@ import { apiBases } from '../utils/config.js'
 import * as api from '../utils/api.js'
 import { redirectLogin } from '../utils/http.js'
 import { createSocket } from '../utils/socket.js'
-import { mergeMetrics, timestamp, probes } from '../utils/metrics.js'
+import { timestamp, probes } from '../utils/metrics.js'
+import { observeDailyTraffic, observeDailyBatch } from '../utils/dailyTraffic.js'
+import { extendProbeWindows } from '../utils/probeTrend.js'
 export const state = reactive({ ready: false, error: '', page: null, loading: false, detail: null, rows: [], hours: 0.167, historyLoading: false, sites: apiBases.map(base => ({ base, config: null, servers: [], stats: {}, sysConfig: {}, status: 'paused', expired: false, socket: null })) })
 let generation = 0, historyGeneration = 0
 export async function initialize() {
@@ -30,12 +32,12 @@ function startSocket(site, page, epoch) {
     status: status => { site.status = status },
     error: message => { state.error = `${site.base}: ${message}` },
     timeout: () => { site.expired = true },
-    update: updates => {
+    update: (updates, samples = new Map()) => {
       if (epoch !== generation) return
       if (detail) {
         const update = updates.get(String(page.id))
         if (!update) return
-        state.detail = mergeMetrics(state.detail, update)
+        state.detail = observeDailyBatch(site.base, state.detail, update, samples.get(String(page.id)))
         const row = { ...state.detail, timestamp: update.sample_timestamp ?? update.last_updated }
         // A retained snapshot field is not a new probe measurement.
         for (const key of probes) for (const field of ['ping', 'loss']) row[`${field}_${key}`] = update[`${field}_${key}`]
@@ -43,7 +45,7 @@ function startSocket(site, page, epoch) {
         state.rows = [...state.rows.filter(item => timestamp(item.timestamp ?? item.last_updated) !== timestamp(row.timestamp)), row].filter(item => timestamp(item.timestamp ?? item.last_updated) >= since).sort((a, b) => timestamp(a.timestamp ?? a.last_updated) - timestamp(b.timestamp ?? b.last_updated)).slice(-2000)
       } else {
         // Unchanged cards retain object identity. No reactive mutation per WS sample.
-        site.servers = site.servers.map(server => updates.has(String(server.id)) ? mergeMetrics(server, updates.get(String(server.id))) : server)
+        site.servers = site.servers.map(server => updates.has(String(server.id)) ? observeDailyBatch(site.base, server, extendProbeWindows(server, updates.get(String(server.id)), samples.get(String(server.id))), samples.get(String(server.id))) : server)
       }
     }
   })
@@ -61,7 +63,7 @@ export async function setPage(page, resume = false) {
       if (!site) throw new Error('Unknown site')
       const current = await api.server(site, page.id)
       if (epoch !== generation) return
-      state.detail = current
+      state.detail = observeDailyTraffic(site.base, current)
       // History is fetched on entering a detail route or a user range change only.
       if (!resume) await changeHours(0.167)
       startSocket(site, page, epoch)
@@ -69,7 +71,7 @@ export async function setPage(page, resume = false) {
       await Promise.all(state.sites.map(async site => {
         const data = await api.servers(site, resume)
         if (epoch !== generation) return
-        site.servers = data.servers || []
+        site.servers = (data.servers || []).map(server => observeDailyTraffic(site.base, server))
         site.stats = data.stats || {}
         site.sysConfig = data.sysConfig || {}
         startSocket(site, page, epoch)

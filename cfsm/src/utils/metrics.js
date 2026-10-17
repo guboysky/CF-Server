@@ -15,7 +15,7 @@ export function mergeMetrics(previous, incoming) {
   }
   return next
 }
-export function collectBatch(message, pending, ids) {
+export function collectBatch(message, pending, ids, onSample) {
   if (message.type !== 'batchUpdate') return
   for (const update of message.updates || []) {
     const id = String(update.serverId)
@@ -24,6 +24,7 @@ export function collectBatch(message, pending, ids) {
     for (const sample of samples) {
       const data = sample.data || sample.payload || sample.metrics
       if (!data || typeof data !== 'object') continue
+      onSample?.(id, { data, ts: sample.ts ?? sample.timestamp ?? data.last_updated ?? message.ts ?? Date.now() })
       const merged = mergeMetrics(pending.get(id), data)
       merged.last_updated = data.last_updated ?? sample.ts ?? sample.timestamp ?? message.ts ?? Date.now()
       pending.set(id, merged)

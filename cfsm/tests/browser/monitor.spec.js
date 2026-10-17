@@ -176,3 +176,15 @@ test('multiple sites keep subscription ids separate and use cross-origin JWT', a
   expect(count(ctx, '/api/servers')).toBe(2)
 })
 
+
+test('live probes grow the 1H curve and daily observation updates without extra requests',async({page})=>{
+ const ctx=await mock(page);await page.goto('/');await expect(page.locator('.cf-card')).toBeVisible();await expect.poll(()=>ctx.sockets.length).toBe(1)
+ await expect(page.locator('.overview-traffic')).toContainText('今日已观测')
+ const original=await page.locator('.carrier-row[data-probe=ct] .sparkline').innerHTML()
+ const time=Date.now()
+ ctx.sockets[0].ws.send(JSON.stringify({type:'batchUpdate',updates:[{serverId:'one',samples:[{ts:time,data:{ping_ct:240,loss_ct:0,net_rx:server.net_rx+1024,net_tx:server.net_tx+2048}},{ts:time+100,data:{ping_ct:245,loss_ct:2,net_rx:server.net_rx+2048,net_tx:server.net_tx+4096}}]}]}))
+ await expect(page.locator('.carrier-row[data-probe=ct] .loss-caption')).toHaveText('0.67%')
+ await expect(page.locator('.overview-traffic')).toContainText('2.0 KB')
+ expect(await page.locator('.carrier-row[data-probe=ct] .sparkline').innerHTML()).not.toBe(original)
+ expect(count(ctx,'/api/servers')).toBe(1);expect(count(ctx,'/api/history/all')).toBe(0);expect(ctx.pageErrors).toEqual([])
+})
