@@ -1,0 +1,244 @@
+diff --git a/DAILY_TRAFFIC.md b/DAILY_TRAFFIC.md
+new file mode 100644
+index 0000000..6a64910
+--- /dev/null
++++ b/DAILY_TRAFFIC.md
+@@ -0,0 +1,11 @@
++# 今日流量（采样统计）
++
++`/api/servers` 与 `/api/server` 现在返回 `net_rx_daily`、`net_tx_daily`（字节）。按北京时间当天 00:00 起保存的网络累计计数器计算，有重置时从新计数器继续累计，不使用月流量冒充今日流量。
++
++`traffic_daily_since` 是首个有效采样时间，`traffic_daily_at` 是末次样本时间，`traffic_daily_until` 是当日结束时间；`traffic_daily_partial: true` 提醒主题显示“今日已观测”。午夜之前和当天首个样本之间的流量无法精确拆分，因此不把它计入当天；采样间多次重启等情况也可能丢失计数。这是历史采样统计，不是运营商账单。
++
++查询同时处理周日 UTC 历史表轮换，使用现有分区主键范围，不修改数据库结构。每节点历史结果缓存五分钟、最多 256 项、并发上限 3，同一时刻请求共用未完成查询。缓存历史加最新计数器得到 API 响应；主题在页面内继续接收 WS 更新，无需增加前端请求或轮询。默认每分钟写历史时，每节点冷查询最多读取当天约 1440 行；会增加 D1 历史读取量。
++
++应用方式：合并这项改动后，按现有方式重新部署 CF 程序。没有改默认主题样式，也没有更换当前已选主题。自定义主题须读取新增字段才能展示。
++
++验证：`npm test` 包含真实 Miniflare D1 用例，覆盖跨周、缓存、计数器重置、缺失与有效零值；`npm run build` 检查默认主题构建。
+diff --git a/package.json b/package.json
+index b43cf92..5c7ecfd 100644
+--- a/package.json
++++ b/package.json
+@@ -1,46 +1,46 @@
+-{
+-  "name": "cf-server-monitor",
+-  "version": "2.7.10",
+-  "description": "Cloudflare Workers Server Monitor - 多服务器监控探针",
+-  "type": "module",
+-  "scripts": {
+-    "dev": "wrangler dev",
+-    "deploy": "npm run build:frontend && wrangler deploy",
+-    "tail": "wrangler tail",
+-    "dev:frontend": "vite",
++{
++  "name": "cf-server-monitor",
++  "version": "2.7.10",
++  "description": "Cloudflare Workers Server Monitor - 多服务器监控探针",
++  "type": "module",
++  "scripts": {
++    "dev": "wrangler dev",
++    "deploy": "npm run build:frontend && wrangler deploy",
++    "tail": "wrangler tail",
++    "dev:frontend": "vite",
+     "build": "node scripts/build.js",
+     "build:frontend": "node scripts/build.js",
+     "build:github-page": "node scripts/build-github-page.js",
+-    "test": "node --test test/admin-usage.test.js test/dashboard-latency-window.test.js test/frontend-api-base.test.js test/frontend-live-socket.test.js test/metrics-broadcaster-agent-config.test.js",
++    "test": "node --test test/daily-traffic.test.js test/admin-usage.test.js test/dashboard-latency-window.test.js test/frontend-api-base.test.js test/frontend-live-socket.test.js test/metrics-broadcaster-agent-config.test.js",
+     "test:all": "npm run test && npm run test:agent-config && npm run test:history-query",
+     "test:agent-config": "node test/agent-config.js",
+     "test:history-query": "node --test test/history-query.test.js",
+     "preview": "vite preview"
+   },
+-  "keywords": [
+-    "cloudflare",
+-    "workers",
+-    "monitor",
+-    "server",
+-    "probe"
+-  ],
+-  "author": "",
+-  "license": "MIT",
+-  "devDependencies": {
+-    "@vitejs/plugin-vue": "^6.0.0",
+-    "fs-extra": "^11.3.5",
+-    "vite": "^6.0.0",
+-    "vite-plugin-mkcert": "^2.1.0",
+-    "wrangler": "^4.0.0"
+-  },
+-  "dependencies": {
+-    "chart.js": "^4.4.0",
+-    "chartjs-adapter-date-fns": "^3.0.0",
+-    "leaflet": "^1.9.4",
+-    "vue": "^3.4.0",
+-    "vue-router": "^4.4.0"
+-  },
+-  "engines": {
+-    "node": ">=18.0.0"
+-  }
+-}
++  "keywords": [
++    "cloudflare",
++    "workers",
++    "monitor",
++    "server",
++    "probe"
++  ],
++  "author": "",
++  "license": "MIT",
++  "devDependencies": {
++    "@vitejs/plugin-vue": "^6.0.0",
++    "fs-extra": "^11.3.5",
++    "vite": "^6.0.0",
++    "vite-plugin-mkcert": "^2.1.0",
++    "wrangler": "^4.0.0"
++  },
++  "dependencies": {
++    "chart.js": "^4.4.0",
++    "chartjs-adapter-date-fns": "^3.0.0",
++    "leaflet": "^1.9.4",
++    "vue": "^3.4.0",
++    "vue-router": "^4.4.0"
++  },
++  "engines": {
++    "node": ">=18.0.0"
++  }
++}
+diff --git a/src/database/dailyTraffic.js b/src/database/dailyTraffic.js
+new file mode 100644
+index 0000000..42f4d2f
+--- /dev/null
++++ b/src/database/dailyTraffic.js
+@@ -0,0 +1,69 @@
++import { getServerHistoryInfo, getHistoryIdRange } from './indexOptimization.js';
++
++const DAY = 86400000, OFFSET = 8 * 3600000, TTL = 300000;
++const caches = new WeakMap();
++const number = value => value !== null && value !== undefined && value !== false && value !== '' && Number.isFinite(Number(value)) && Number(value) >= 0 ? Number(value) : null;
++const time = value => Number(value) < 1e12 ? Number(value) * 1000 : Number(value);
++export function trafficDay(now) {
++  const start = Math.floor((now + OFFSET) / DAY) * DAY - OFFSET;
++  const date = new Date(start + OFFSET);
++  return { start, end: start + DAY, day: `${date.getUTCFullYear()}-${String(date.getUTCMonth()+1).padStart(2,'0')}-${String(date.getUTCDate()).padStart(2,'0')}` };
++}
++// Counter deltas are measured between real snapshots. Do not attribute the
++// unobserved interval before the first daily snapshot to today's usage.
++export function sumDailyTraffic(rows, latest, now = Date.now()) {
++  const { start, end, day } = trafficDay(now);
++  const points = new Map();
++  for (const row of [...rows, latest]) {
++    if (!row) continue;
++    const timestamp = time(row.last_updated ?? row.timestamp);
++    if (timestamp >= start && timestamp <= now) points.set(timestamp, { ...row, timestamp });
++  }
++  const ordered = [...points.values()].sort((a,b)=>a.timestamp-b.timestamp);
++  const result = { traffic_daily_day: day, traffic_daily_until: end, traffic_daily_timezone: 'Asia/Shanghai', traffic_daily_partial: true };
++  for (const direction of ['rx','tx']) {
++    let previous = null, total = 0, since = null;
++    for (const row of ordered) {
++      const value = number(row[`net_${direction}`]);
++      if (value === null) continue;
++      since ??= row.timestamp;
++      if (previous !== null) total += value >= previous ? value - previous : value;
++      previous = value;
++    }
++    if (since !== null) { result[`net_${direction}_daily`] = total; result.traffic_daily_since = Math.max(result.traffic_daily_since || 0, since); }
++  }
++  result.traffic_daily_at = ordered.at(-1)?.timestamp;
++  return result;
++}
++async function readDay(db, server, now) {
++  const { start } = trafficDay(now);
++  const info = await getServerHistoryInfo(db, server.id, server);
++  const begin = Math.max(start, info.startTimestamp);
++  const range = info.partitionId ? getHistoryIdRange(info.partitionId, begin, now) : null;
++  const tables = ['metrics_history'];
++  const sunday = new Date(now); sunday.setUTCHours(0,0,0,0); sunday.setUTCDate(sunday.getUTCDate()-sunday.getUTCDay());
++  if (begin < sunday.getTime() && await db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='metrics_history_old'").first()) tables.push('metrics_history_old');
++  const queries = tables.map(table => range
++    ? db.prepare(`SELECT timestamp,net_rx,net_tx FROM ${table} WHERE id BETWEEN ? AND ? AND server_id = ? AND timestamp >= ? AND timestamp <= ? ORDER BY id`).bind(range.startId,range.endId,server.id,begin,now)
++    : db.prepare(`SELECT timestamp,net_rx,net_tx FROM ${table} WHERE server_id = ? AND timestamp >= ? AND timestamp <= ? ORDER BY timestamp`).bind(server.id,begin,now));
++  const results = await db.batch(queries);
++  return results.flatMap(result=>result.results || []);
++}
++export async function attachDailyTraffic(db, servers, now = Date.now()) {
++  let cache = caches.get(db); if (!cache) { cache = new Map(); caches.set(db,cache); }
++  // Three bounded workers; cache the in-flight promise as well as the result.
++  let cursor = 0;
++  await Promise.all(Array.from({length:Math.min(3,servers.length)},async()=>{
++    while (cursor < servers.length) {
++      const server = servers[cursor++], key = `${server.id}:${server.timestamp || 0}:${trafficDay(now).day}`;
++      try {
++        let entry = cache.get(key);
++        if (!entry || now-entry.at >= TTL) {
++          entry = { at:now, rows:readDay(db,server,now) }; cache.delete(key); cache.set(key,entry);
++          if (cache.size > 256) cache.delete(cache.keys().next().value);
++        }
++        Object.assign(server,sumDailyTraffic(await entry.rows,server,now));
++      } catch (error) { cache.delete(key); console.warn('[DailyTraffic] History unavailable:',error?.message || error); }
++    }
++  }));
++}
+diff --git a/src/handlers/dashboard.js b/src/handlers/dashboard.js
+index 6fc80ba..681297c 100644
+--- a/src/handlers/dashboard.js
++++ b/src/handlers/dashboard.js
+@@ -1,3 +1,4 @@
++import { attachDailyTraffic } from '../database/dailyTraffic.js';
+ import { checkAuth, simpleAuthResponse } from '../middleware/auth.js';
+ import { getDashboardLatencyHistory, getLatestMetrics, getLatestMetricsForAllServers } from '../database/schema.js';
+ import { getAllServers, getServerDetail } from '../utils/cache.js';
+@@ -184,6 +185,7 @@ export async function handleServerAPI(request, env, sys) {
+     getRealtimeStateForServers(env, [id])
+   ]);
+   mergeMetricsIntoServer(server, latestMetrics);
++  await attachDailyTraffic(env.DB, [server]);
+   server.latestReportUpdates = realtimeState.latestReportUpdates;
+   server.sysConfig = {
+     long_history_points: Number(normalizeLongHistoryPoints(sys.long_history_points))
+@@ -244,6 +246,7 @@ export async function handleServersAPI(request, env, sys) {
+     }
+   }
+   
++  await attachDailyTraffic(env.DB, results, now);
+   const globalOffline = results.length - globalOnline;
+ 
+   const data = {
+diff --git a/test/daily-traffic.test.js b/test/daily-traffic.test.js
+new file mode 100644
+index 0000000..a7b0aca
+--- /dev/null
++++ b/test/daily-traffic.test.js
+@@ -0,0 +1,32 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { Miniflare } from 'miniflare';
++import { sumDailyTraffic, trafficDay, attachDailyTraffic } from '../src/database/dailyTraffic.js';
++import { buildHistoryId } from '../src/database/indexOptimization.js';
++const now = Date.UTC(2026,9,18,1), start=trafficDay(now).start;
++test('daily observed counters exclude yesterday, preserve zero, handle resets and independent missing fields',()=>{
++ const rows=[{timestamp:start-1000,net_rx:9999,net_tx:9999},{timestamp:start+1000,net_rx:100,net_tx:200},{timestamp:start+2000,net_rx:160,net_tx:null},{timestamp:start+3000,net_rx:10,net_tx:300}];
++ const value=sumDailyTraffic(rows,{timestamp:now,net_rx:20,net_tx:320},now);
++ assert.equal(value.net_rx_daily,80);assert.equal(value.net_tx_daily,120);
++ assert.equal(value.traffic_daily_day,'2026-10-18');assert.equal(value.traffic_daily_partial,true);assert.equal(value.traffic_daily_since,start+1000);
++ assert.equal(sumDailyTraffic([{timestamp:now,net_rx:0}],null,now).net_rx_daily,0);
++ assert.equal(sumDailyTraffic([],null,now).net_rx_daily,undefined);
++ assert.equal(trafficDay(start-1).day,'2026-10-17');
++});
++test('D1 daily range merges weekly tables, caches history, and includes a fresh counter without rereading D1',async()=>{
++ const mf=new Miniflare({modules:true,script:'export default {fetch(){return new Response("ok")}}',compatibilityDate:'2024-12-01',d1Databases:['DB']});
++ try {
++  const db=await mf.getD1Database('DB');
++  await db.exec('CREATE TABLE metrics_history(id INTEGER PRIMARY KEY,server_id TEXT,timestamp INTEGER,net_rx REAL,net_tx REAL)');
++  await db.exec('CREATE TABLE metrics_history_old(id INTEGER PRIMARY KEY,server_id TEXT,timestamp INTEGER,net_rx REAL,net_tx REAL)');
++  const times=[start+1000,Date.UTC(2026,9,18,0,0,1)];
++  for (let i=0;i<2;i++) await db.prepare(`INSERT INTO ${i?'metrics_history':'metrics_history_old'} VALUES (?,?,?,?,?)`).bind(buildHistoryId(1,times[i]),'one',times[i],100+i*50,200+i*60).run();
++  const server={id:'one',history_partition_id:1,timestamp:start-86400000,last_updated:now,net_rx:200,net_tx:300};
++  await attachDailyTraffic(db,[server],now);
++  assert.equal(server.net_rx_daily,100);assert.equal(server.net_tx_daily,100);
++  await db.exec('DROP TABLE metrics_history');await db.exec('DROP TABLE metrics_history_old');
++  const newer={...server,last_updated:now+1000,net_rx:220,net_tx:310};
++  await attachDailyTraffic(db,[newer],now+1000);
++  assert.equal(newer.net_rx_daily,120);assert.equal(newer.net_tx_daily,110);
++ } finally { await mf.dispose(); }
++});

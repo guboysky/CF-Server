@@ -1,3 +1,5 @@
+> **CF-Server-Monitor 黑白 Flat Matrix 主题：** 请查看 [cfsm/README.md](cfsm/README.md)。CF 版本源码在 cfsm-port 分支，安装产物在 cfsm-dist 分支。下面原项目说明对应 monitor 平台，上传 theme.tar.gz 的步骤不适用于 CF。
+
 # monitor-theme-huilang
 
 为 [monitor](https://github.com/monitor-probe/monitor) 开发的独立静态主题，参考 [CF-Server-Monitor 演示站](https://demo.huilang.me/#/) 的终端文字、透明面板、背景、指标条和多视图布局。接口遵循 [monitor 主题开发文档](https://monitor-document.pages.dev/dev/theme)。
