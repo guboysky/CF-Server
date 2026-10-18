@@ -51,3 +51,8 @@ export function trafficComposition(rows, server) {
   const total=rx===null||tx===null?null:rx+tx
   return { source,title,rx,tx,value:total>0?rx/total*100:null,label:total===null?'暂无流量数据':total===0?'暂无流量':'下行占比' }
 }
+
+export function monthlyTransfers(items) {
+ const ranked=items.map((item,index)=>{const rx=number(item.server.net_rx_monthly),tx=number(item.server.net_tx_monthly);return {...item,index,rx,tx,total:rx===null||tx===null?null:rx+tx}}).filter(item=>item.total!==null).sort((a,b)=>b.total-a.total||a.index-b.index)
+ return {ranked,count:ranked.length,rx:ranked.reduce((sum,item)=>sum+item.rx,0),tx:ranked.reduce((sum,item)=>sum+item.tx,0),total:ranked.length?ranked.reduce((sum,item)=>sum+item.total,0):null}
+}

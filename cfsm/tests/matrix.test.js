@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { average, maximum, minimum, monthlyPrice, counterDifference, activityBuckets, running, ratio, trafficComposition } from '../src/matrix/data.js'
+import { average, maximum, minimum, monthlyPrice, counterDifference, activityBuckets, running, ratio, trafficComposition, monthlyTransfers } from '../src/matrix/data.js'
 test('matrix statistics preserve zero, exclude absent values and never sum different currencies',()=>{
  assert.equal(average([0,2,false,null,undefined]),1)
  assert.equal(maximum([0,false,null]),0);assert.equal(minimum([0,10]),0)
@@ -35,4 +35,11 @@ test('traffic ring prefers real window counters, otherwise labels monthly or lif
  const zero=trafficComposition([],{net_rx_monthly:0,net_tx_monthly:0})
  assert.equal(zero.source,'monthly');assert.equal(zero.rx,0);assert.equal(zero.label,'暂无流量')
  assert.equal(trafficComposition([],{}).source,'missing');assert.equal(trafficComposition([],{}).rx,null)
+})
+
+test('monthly ranking sums both directions, includes real zeros and excludes partial or missing month counters',()=>{
+ const nodes=[{server:{id:'a',net_rx_monthly:100,net_tx_monthly:200,traffic_calc_type:'max'}},{server:{id:'b',net_rx_monthly:500,net_tx_monthly:50}},{server:{id:'c',net_rx:999999,net_tx:999999}},{server:{id:'d',net_rx_monthly:0,net_tx_monthly:0}},{server:{id:'e',net_rx_monthly:10}}]
+ const result=monthlyTransfers(nodes)
+ assert.deepEqual(result.ranked.map(item=>item.server.id),['b','a','d']);assert.equal(result.total,850);assert.equal(result.rx,600);assert.equal(result.tx,250);assert.equal(result.count,3)
+ assert.equal(monthlyTransfers([]).total,null)
 })

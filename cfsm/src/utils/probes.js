@@ -6,6 +6,16 @@ export function probeNumber(value) {
   const number = Number(value)
   return Number.isFinite(number) && number >= 0 ? number : null
 }
+
+export function selectProbeBlocks(points, loss = false, count = 20) {
+  const actual = points.filter(point => point.value !== undefined && point.value !== false && point.value !== 'false')
+  const selected = actual.length <= count ? actual : Array.from({ length: count }, (_, index) => {
+    const group = actual.slice(Math.floor(index * actual.length / count), Math.floor((index + 1) * actual.length / count))
+    if (!loss && group.some(point => point.value === null)) return group.find(point => point.value === null)
+    return group.reduce((worst, point) => probeNumber(point.value) !== null && (probeNumber(worst.value) === null || Number(point.value) >= Number(worst.value)) ? point : worst, group[0])
+  })
+  return [...Array.from({ length: count - selected.length }, () => ({ missing: true })), ...selected]
+}
 export function probeAverage(values) {
   const valid = values.map(probeNumber).filter(value => value !== null)
   return valid.length ? valid.reduce((sum, value) => sum + value, 0) / valid.length : null
