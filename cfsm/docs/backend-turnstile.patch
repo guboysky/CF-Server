@@ -1,0 +1,26 @@
+diff --git a/src/index.js b/src/index.js
+--- a/src/index.js
++++ b/src/index.js
+@@ -449,10 +449,21 @@
+           finalHeaders.set('Access-Control-Allow-Origin', request.headers.get('Origin') || '');
+           finalHeaders.set('Access-Control-Allow-Credentials', 'true');
+           finalHeaders.set('Vary', 'Origin');
+ 
+-          return new Response(response.body, {
++          // Let a third-party theme reuse verification without refetching config.
++          let responseBody = response.body;
++          if (response.ok && response.headers.get('Content-Type')?.includes('application/json')) {
++            const data = await response.json();
++            if (data && typeof data === 'object' && !Array.isArray(data)) {
++              data.turnstile_verified = encryptedData;
++            }
++            responseBody = JSON.stringify(data);
++            finalHeaders.delete('Content-Length');
++          }
++
++          return new Response(responseBody, {
+             status: response.status,
+             statusText: response.statusText,
+             headers: finalHeaders
+           });
+         }
