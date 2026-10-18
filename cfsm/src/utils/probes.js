@@ -14,7 +14,9 @@ export function selectProbeBlocks(points, loss = false, count = 20) {
     if (!loss && group.some(point => point.value === null)) return group.find(point => point.value === null)
     return group.reduce((worst, point) => probeNumber(point.value) !== null && (probeNumber(worst.value) === null || Number(point.value) >= Number(worst.value)) ? point : worst, group[0])
   })
-  return [...Array.from({ length: count - selected.length }, () => ({ missing: true })), ...selected]
+  // Size the strip to received samples: initial CF snapshots may contain fewer than 20.
+  // Never manufacture historical readings to fill a fixed number of slots.
+  return selected.length ? selected : [{ missing: true }]
 }
 export function probeAverage(values) {
   const valid = values.map(probeNumber).filter(value => value !== null)

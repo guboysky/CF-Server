@@ -46,7 +46,7 @@ test('CF resource histories use percentages and parse both disk IO payload forma
 test('paired probe blocks keep missing/timeout/zero distinct and preserve measured spikes without repeating samples',()=>{
  const points=[{time:1,value:0},{time:2,value:null},{time:3,value:false},{time:4,value:undefined},{time:5,value:20}]
  const slots=selectProbeBlocks(points)
- assert.equal(slots.length,20);assert.equal(slots.filter(p=>p.missing).length,17);assert.deepEqual(slots.slice(-3).map(p=>p.value),[0,null,20])
+ assert.equal(slots.length,3);assert.equal(slots.filter(p=>p.missing).length,0);assert.deepEqual(slots.map(p=>p.value),[0,null,20]);assert.deepEqual(selectProbeBlocks([]),[{missing:true}])
  const dense=Array.from({length:100},(_,i)=>({time:i+1,value:i===22?8:0}))
  const loss=selectProbeBlocks(dense,true)
  assert.equal(loss.length,20);assert.ok(loss.some(point=>point.value===8));assert.equal(new Set(loss.map(p=>p.time)).size,20);assert.ok(loss.every(point=>dense.includes(point)))

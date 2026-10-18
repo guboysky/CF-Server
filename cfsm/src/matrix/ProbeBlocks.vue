@@ -12,4 +12,4 @@ function title(point){
  return `${value}${time?' · '+new Date(time).toLocaleTimeString('zh-CN',{hour12:false}):''}`
 }
 </script>
-<template><span class="probe-strip" role="img" :aria-label="label"><i v-for="(point,index) in blocks" :key="index" :class="tone(point)" :title="title(point)"/></span></template>
+<template><span class="probe-strip" :style="{gridTemplateColumns:`repeat(${blocks.length},minmax(0,1fr))`}" role="img" :aria-label="label"><i v-for="(point,index) in blocks" :key="index" :class="tone(point)" :title="title(point)"/></span></template>

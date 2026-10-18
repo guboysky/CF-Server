@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 const server = { id: 'one', note: 'CN2 GIA, 备用节点', ip_v4: '1', ip_v6: '1', name: 'Tokyo Edge', region: 'JP', server_group: 'Production', cpu: 12, cpu_cores: 4, cpu_info: 'AMD EPYC 7B13', kernel_version: '6.12.41-amd64', boot_time: Date.now() - 93 * 86400000, load_avg: '0.07, 0.03, 0.00', ram_total: 4096, ram_used: 1024, disk_total: 80000, disk_used: 12000, swap_total: 2048, swap_used: 0, net_in_speed: 1024, net_out_speed: 512, net_rx: 274 * 1024 ** 3, net_tx: 393 * 1024 ** 3, net_rx_monthly: 27 * 1024 ** 3, net_tx_monthly: 3 * 1024 ** 3, traffic_limit: 1024, processes: 94, tcp_conn: 28, udp_conn: 2, price: '33.15', currency: '$', billing_cycle: 'month', expire_date: new Date(Date.now() + 19 * 86400000).toISOString(), arch: 'amd64', os: 'Debian', last_updated: Date.now(), ping_ct: 0, loss_ct: 0, ping_cu: null, loss_cu: null, ping_cm: false, loss_cm: false, ping: [{ ts: Date.now(), ct: 0, cu: null, cm: false }], loss: [{ ts: Date.now(), ct: 0, cu: null, cm: false }] }
-async function mock(page, { isPublic = true, turnstile = false, loggedIn = false, timeout = 0, rejectOnce = false, nodes = 1, multiSite = false, note = server.note, clusteredHistory = false, themeOptions = {}, sysConfig = {}, serverData = {}, historyData = null } = {}) {
+async function mock(page, { isPublic = true, turnstile = false, loggedIn = false, timeout = 0, rejectOnce = false, nodes = 1, multiSite = false, note = server.note, clusteredHistory = false, themeOptions = {}, backgrounds = {}, sysConfig = {}, serverData = {}, historyData = null } = {}) {
   const calls = [], sockets = [], apiErrors = [], pageErrors = []
   page.on('pageerror', error => pageErrors.push(error.message))
   await page.addInitScript(({ loggedIn }) => {
@@ -20,7 +20,7 @@ async function mock(page, { isPublic = true, turnstile = false, loggedIn = false
   await page.route('**/api/**', async route => {
     const request = route.request(), url = new URL(request.url()), headers = request.headers()
     calls.push({ path: url.pathname, query: url.search, headers, method: request.method(), body: request.postDataJSON() })
-    if (url.pathname === '/api/config') return route.fulfill({ json: { site_title: 'Ink Infrastructure', version: 'test', preferred_theme: 'dark', default_language: 'zh', is_public: isPublic, authorization: loggedIn, turnstile_enabled: turnstile, turnstile_site_key: 'test-key', frontend_ws_timeout_minutes: timeout, theme_options: themeOptions, custom_ct_name: '电信', custom_cu_name: '联通' } })
+    if (url.pathname === '/api/config') return route.fulfill({ json: { site_title: 'Ink Infrastructure', version: 'test', preferred_theme: 'dark', default_language: 'zh', is_public: isPublic, authorization: loggedIn, turnstile_enabled: turnstile, turnstile_site_key: 'test-key', frontend_ws_timeout_minutes: timeout, theme_options: themeOptions, ...backgrounds, custom_ct_name: '电信', custom_cu_name: '联通' } })
     if (!isPublic && !headers.authorization) return route.fulfill({ status: 401, json: { error: 'Unauthorized' } })
     if (turnstile && ((!headers['x-turnstile-token'] && !headers['x-turnstile-verified']) || (rejectOnce && !rejected))) { rejected = true; return route.fulfill({ status: 403, json: { error: 'Turnstile' } }) }
     const verified = turnstile ? { turnstile_verified: 'cached-verified' } : {}
@@ -230,7 +230,7 @@ test('monthly traffic leaderboard and paired sample strips update live without n
  await expect(page.locator('.traffic-ranking')).toContainText('节点流量排行榜');await expect(page.locator('.fees')).toHaveCount(0)
  await expect(page.locator('.month-transfer')).toContainText('18.0 GB')
  const carrier=page.locator('.cf-card').first().locator('.carrier-row[data-probe=ct]')
- await expect(carrier.locator('.probe-strip')).toHaveCount(2);await expect(carrier.locator('.probe-strip i')).toHaveCount(40)
+ await expect(carrier.locator('.probe-strip')).toHaveCount(2);await expect(carrier.locator('.probe-strip i')).toHaveCount(6)
  await expect(carrier.locator('.probe-strip').first().locator('i.bad')).toHaveCount(1)
  await expect(carrier.locator('.probe-strip').nth(1).locator('i.bad')).toHaveCount(1)
  const first=await page.locator('.traffic-rank-row').first().innerText();expect(first).toContain('Tokyo Edge')
@@ -240,4 +240,29 @@ test('monthly traffic leaderboard and paired sample strips update live without n
  await expect(page.locator('.month-transfer')).toContainText('30.0 GB')
  for(const width of [800,390,320]){await page.setViewportSize({width,height:900});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)}
  expect(count(ctx,'/api/servers')).toBe(1);expect(count(ctx,'/api/history/all')).toBe(0);expect(ctx.pageErrors).toEqual([])
+})
+
+
+test('warm dark theme and configured desktop/mobile wallpapers remain transparent across detail and refresh',async({page})=>{
+ const ctx=await mock(page,{nodes:6,backgrounds:{custom_bg:'https://cdn.nodeimage.com/desktop.svg',custom_bg_mobile:'https://cdn.nodeimage.com/mobile.svg'}})
+ await page.setViewportSize({width:1440,height:1000});await page.goto('/');await expect(page.locator('.cf-card')).toHaveCount(6)
+ await expect(page.locator('body')).toHaveClass(/has-wallpaper/)
+ const surface=()=>page.locator('.overview').first().evaluate(el=>({panel:getComputedStyle(el).backgroundColor,body:getComputedStyle(document.body).backgroundImage}))
+ expect((await surface()).body).toContain('desktop.svg');expect((await surface()).panel).toMatch(/rgba\(/)
+ await expect(page.locator('.busiest')).toContainText('Los Angeles');await expect(page.locator('.busiest')).toContainText('82%')
+ const top=await page.locator('.overview-grid>.overview').allTextContents();expect(top[3]).toContain('实时网速');expect(top[6]).toContain('本月总流量')
+ expect(await page.locator('.overview').first().evaluate(el=>el.getBoundingClientRect().top-document.querySelector('.site-header').getBoundingClientRect().bottom)).toBeLessThan(25)
+ const strip=page.locator('.cf-card').first().locator('.probe-strip').first();await expect(strip.locator('i')).toHaveCount(1)
+ expect(await strip.evaluate(el=>Math.abs(el.getBoundingClientRect().width-el.firstElementChild.getBoundingClientRect().width))).toBeLessThan(1)
+ await page.screenshot({path:'artifacts/matrix-wallpaper-dark.png',fullPage:true})
+ await page.getByRole('button',{name:'切换深浅色'}).click();expect((await surface()).panel).toContain('255, 255, 255')
+ await page.screenshot({path:'artifacts/matrix-wallpaper.png',fullPage:true})
+ await page.locator('.cf-card').first().click();await expect(page.locator('.fact-panel')).toHaveCount(4)
+ expect(await page.locator('.fact-panel').first().evaluate(el=>getComputedStyle(el).backgroundColor)).toMatch(/rgba\(/)
+ await page.screenshot({path:'artifacts/matrix-detail-wallpaper.png',fullPage:true})
+ await page.setViewportSize({width:390,height:844});await expect.poll(()=>page.locator('body').evaluate(el=>el.style.backgroundImage)).toContain('mobile.svg')
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
+ await page.goto('/');await expect(page.locator('.cf-card')).toHaveCount(6);await page.reload();await expect(page.locator('.cf-card')).toHaveCount(6)
+ const refreshed=page.locator('.cf-card').first().locator('.probe-strip').first();await expect(refreshed.locator('i')).toHaveCount(1);await expect(refreshed.locator('i.absent')).toHaveCount(0)
+ expect(count(ctx,'/api/history/all')).toBe(1);expect(ctx.pageErrors).toEqual([])
 })

@@ -29,6 +29,7 @@ export function applyAppearance(config) {
   const background = () => {
     const value = matchMedia('(max-width: 640px)').matches && config.custom_bg_mobile ? config.custom_bg_mobile : config.custom_bg || meta('backgroundImage') || themeOptions.value.background_url
     document.body.style.backgroundImage = value ? `url(${JSON.stringify(value)})` : ''
+    document.body.classList.toggle('has-wallpaper', Boolean(value))
   }
   document.body.style.setProperty('--panel-opacity', String(Math.max(0.3, Math.min(1, Number(themeOptions.value.panel_opacity) || 0.72))))
   background(); window.addEventListener('resize', background)
