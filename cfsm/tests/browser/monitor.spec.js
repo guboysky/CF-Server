@@ -124,13 +124,17 @@ test('matrix screenshots desktop, latency and mobile without overflow',async({pa
  await expect(page.locator('.map-toggle')).toHaveCount(0)
  await expect(page.locator('.cf-card').first().locator('.node-title>strong .os-icon')).toHaveCount(1)
  await expect(page.locator('.cf-card').first().locator('.node-badges .expiry-chip')).toHaveCount(1)
- await expect(page.locator('.cf-card').first()).toContainText('1H 采样')
+ await expect(page.locator('.cf-card').first().locator('.card-probes>.muted.spread')).toHaveCount(0)
  await expect(page.locator('.cf-card .node-sub')).toHaveCount(0)
  const cards=await page.locator('.cf-card').evaluateAll(elements=>elements.map(el=>({top:el.getBoundingClientRect().top,width:el.getBoundingClientRect().width})))
  expect(new Set(cards.slice(0,4).map(card=>card.top)).size).toBe(1)
  expect(cards[4].top).toBeGreaterThan(cards[0].top)
  expect(cards[0].width).toBeLessThan(440)
- await page.screenshot({path:'artifacts/matrix-home-dark.png',fullPage:true});await page.getByRole('button',{name:'切换深浅色'}).click();await page.screenshot({path:'artifacts/matrix-home.png',fullPage:true})
+ const tableTops=await page.locator('.traffic-rank-row,.expiry-rank-row').evaluateAll(elements=>elements.map(el=>({top:el.getBoundingClientRect().top,height:el.getBoundingClientRect().height})))
+ expect(tableTops).toHaveLength(8);for(let index=0;index<4;index++){expect(Math.abs(tableTops[index].top-tableTops[index+4].top)).toBeLessThan(1);expect(Math.abs(tableTops[index].height-tableTops[index+4].height)).toBeLessThan(1)}
+ const contrast=()=>page.locator('.fleet-toolbar button[aria-pressed=true]').evaluate(button=>{const c=getComputedStyle(button),lum=color=>{const rgb=color.match(/[\d.]+/g).slice(0,3).map(n=>Number(n)/255).map(n=>n<=.04045?n/12.92:((n+.055)/1.055)**2.4);return rgb[0]*.2126+rgb[1]*.7152+rgb[2]*.0722};const fg=lum(c.color),bg=lum(c.backgroundColor);return (Math.max(fg,bg)+.05)/(Math.min(fg,bg)+.05)})
+ expect(await contrast()).toBeGreaterThan(4.5)
+ await page.screenshot({path:'artifacts/matrix-home-dark.png',fullPage:true});await page.getByRole('button',{name:'切换深浅色'}).click();expect(await contrast()).toBeGreaterThan(4.5);await page.screenshot({path:'artifacts/matrix-home.png',fullPage:true})
  await page.locator('.cf-card').first().click();await expect(page.locator('.resource-curves .chart-card')).toHaveCount(4);
  const facts=await page.locator('.detail-facts-grid>article').evaluateAll(elements=>elements.map(el=>el.getBoundingClientRect().top));expect(facts).toHaveLength(4);expect(new Set(facts).size).toBe(1);
  await page.screenshot({path:'artifacts/matrix-detail.png',fullPage:true})
